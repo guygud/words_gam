@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Головоломка со словами</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .puzzle-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .puzzle-info {
+            display: flex;
+            gap: 30px;
+            font-size: 18px;
+        }
+        
+        .puzzle-info-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .puzzle-info-item label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .puzzle-info-item span {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .instructions {
+            max-width: 600px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+        }
+        
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        #gameCanvas {
+            border: 3px solid #333;
+            background: #1a1a1a;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Головоломка со словами</h1>
+        <div class="puzzle-container">
+            <div class="puzzle-info">
+                <div class="puzzle-info-item">
+                    <label>Ходов:</label>
+                    <span id="moves">0</span>
+                </div>
+                <div class="puzzle-info-item">
+                    <label>Найдено слов:</label>
+                    <span id="words-found">0 / 5</span>
+                </div>
+            </div>
+            
+            <div id="words-list" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 10px 0;">
+                <!-- Слова будут добавлены динамически -->
+            </div>
+            
+            <div id="start-button-container" style="margin: 10px 0;">
+                <button id="start-button" style="padding: 15px 30px; font-size: 18px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    Старт
+                </button>
+            </div>
+            
+            <canvas id="gameCanvas" width="450" height="450"></canvas>
+            
+            <div id="win-message" style="display: none; margin-top: 20px; padding: 20px; background: #4CAF50; color: white; border-radius: 5px; text-align: center;">
+            </div>
+            
+            <div class="instructions">
+                <h3>Как играть:</h3>
+                <ul>
+                    <li><strong>Клик по краям поля:</strong> вращение строк/столбцов</li>
+                    <li><strong>Слева/справа от строки:</strong> вращение строки влево/вправо</li>
+                    <li><strong>Сверху/снизу от столбца:</strong> вращение столбца вверх/вниз</li>
+                    <li><strong>Клавиатура:</strong> цифры 1-5 для выбора строки/столбца, затем Q/A (строки) или W/S (столбцы)</li>
+                    <li><strong>Цель:</strong> собрать слова из букв, вращая строки и столбцы. Найденные слова подсвечиваются зеленым!</li>
+                </ul>
+            </div>
+        </div>
+        <div id="log" class="log-panel"></div>
+    </div>
+    <script type="module" src="js/puzzle/main.js"></script>
+</body>
+</html>

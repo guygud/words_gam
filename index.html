@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тетрис со словом дня</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Тетрис со словом дня</h1>
+        <div class="game-wrapper">
+            <div class="info-panel">
+                <div class="info-item">
+                    <h3>Слово дня:</h3>
+                    <div id="word-of-day" class="word-display"></div>
+                </div>
+                <div class="info-item">
+                    <h3>Счёт:</h3>
+                    <div id="score" class="score-display">0</div>
+                </div>
+                <div class="info-item">
+                    <h3>Управление:</h3>
+                    <div class="controls">
+                        <p>← → - движение буквы</p>
+                        <p>↓ - ускорение падения</p>
+                    </div>
+                </div>
+            </div>
+            <canvas id="gameCanvas" width="180" height="180"></canvas>
+        </div>
+        <div id="log" class="log-panel"></div>
+    </div>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
