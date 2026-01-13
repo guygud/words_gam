@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Раннер с буквами</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #ffffff;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        canvas {
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            background: #0f3460;
+        }
+        
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .instructions h2 {
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .instructions ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+            padding-left: 25px;
+            position: relative;
+        }
+        
+        .instructions li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #e94560;
+            font-size: 1.5em;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #e94560;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+        
+        .back-link:hover {
+            color: #ff6b9d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏃 Раннер с буквами</h1>
+        <div class="game-wrapper">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div class="instructions">
+                <h2>Правила игры</h2>
+                <ul>
+                    <li><strong>Цель:</strong> Соберите слова последовательно: КОТ → КРИК → ЛАМПА</li>
+                    <li><strong>Управление:</strong> Стрелки ← → или A/D для смены полосы</li>
+                    <li><strong>Правильные буквы</strong> (зеленые) - собирайте их для прогресса</li>
+                    <li><strong>Лишние буквы</strong> (красные) - увеличивают длину бегуна, избегайте их!</li>
+                    <li><strong>Бонусы:</strong> 🔥 сжигает лишние буквы, ✨ временно игнорирует их</li>
+                    <li>С каждым словом игра становится быстрее!</li>
+                </ul>
+            </div>
+            
+            <a href="index.html" class="back-link">← Вернуться к играм</a>
+        </div>
+    </div>
+    <script type="module" src="js/wordrunner/main.js"></script>
+</body>
+</html>

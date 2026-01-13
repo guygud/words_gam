@@ -42,28 +42,28 @@ export class Game2048 {
             return;
         }
         
-        let moved = false;
-        
+        // При циклическом сдвиге движение всегда возможно
         switch (direction) {
             case 'left':
-                moved = this.board.moveLeft();
+                this.board.moveLeft();
                 break;
             case 'right':
-                moved = this.board.moveRight();
+                this.board.moveRight();
                 break;
             case 'up':
-                moved = this.board.moveUp();
+                this.board.moveUp();
                 break;
             case 'down':
-                moved = this.board.moveDown();
+                this.board.moveDown();
                 break;
+            default:
+                return;
         }
         
-        if (moved) {
-            this.moves++;
-            this.checkWin();
-            this.render();
-        }
+        // Увеличиваем счетчик ходов и проверяем победу
+        this.moves++;
+        this.checkWin();
+        this.render();
     }
     
     // Проверка победы

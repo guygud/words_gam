@@ -85,134 +85,60 @@ export class Board2048 {
         return this.getCell(x, y) === null;
     }
     
-    // Сдвиг влево
+    // Циклический сдвиг влево (тор - последний элемент становится первым)
     moveLeft() {
-        let moved = false;
         for (let y = 0; y < this.size; y++) {
-            const row = [];
-            // Собираем все непустые клетки
-            for (let x = 0; x < this.size; x++) {
-                if (this.cells[y][x] !== null) {
-                    row.push(this.cells[y][x]);
-                }
+            const first = this.cells[y][0];
+            // Сдвигаем все элементы влево
+            for (let x = 0; x < this.size - 1; x++) {
+                this.cells[y][x] = this.cells[y][x + 1];
             }
-            
-            // Заполняем строку слева направо
-            const newRow = new Array(this.size).fill(null);
-            for (let i = 0; i < row.length; i++) {
-                newRow[i] = row[i];
-            }
-            
-            // Проверяем, изменилась ли строка
-            if (JSON.stringify(this.cells[y]) !== JSON.stringify(newRow)) {
-                moved = true;
-            }
-            
-            this.cells[y] = newRow;
+            // Первый элемент становится последним
+            this.cells[y][this.size - 1] = first;
         }
-        return moved;
+        return true; // Циклический сдвиг всегда возможен
     }
     
-    // Сдвиг вправо
+    // Циклический сдвиг вправо (тор - первый элемент становится последним)
     moveRight() {
-        let moved = false;
         for (let y = 0; y < this.size; y++) {
-            const row = [];
-            // Собираем все непустые клетки
-            for (let x = 0; x < this.size; x++) {
-                if (this.cells[y][x] !== null) {
-                    row.push(this.cells[y][x]);
-                }
+            const last = this.cells[y][this.size - 1];
+            // Сдвигаем все элементы вправо
+            for (let x = this.size - 1; x > 0; x--) {
+                this.cells[y][x] = this.cells[y][x - 1];
             }
-            
-            // Заполняем строку справа налево
-            const newRow = new Array(this.size).fill(null);
-            for (let i = 0; i < row.length; i++) {
-                newRow[this.size - 1 - i] = row[row.length - 1 - i];
-            }
-            
-            // Проверяем, изменилась ли строка
-            if (JSON.stringify(this.cells[y]) !== JSON.stringify(newRow)) {
-                moved = true;
-            }
-            
-            this.cells[y] = newRow;
+            // Последний элемент становится первым
+            this.cells[y][0] = last;
         }
-        return moved;
+        return true; // Циклический сдвиг всегда возможен
     }
     
-    // Сдвиг вверх
+    // Циклический сдвиг вверх (тор - последний элемент становится первым)
     moveUp() {
-        let moved = false;
         for (let x = 0; x < this.size; x++) {
-            const column = [];
-            // Собираем все непустые клетки
-            for (let y = 0; y < this.size; y++) {
-                if (this.cells[y][x] !== null) {
-                    column.push(this.cells[y][x]);
-                }
+            const first = this.cells[0][x];
+            // Сдвигаем все элементы вверх
+            for (let y = 0; y < this.size - 1; y++) {
+                this.cells[y][x] = this.cells[y + 1][x];
             }
-            
-            // Заполняем столбец сверху вниз
-            const newColumn = new Array(this.size).fill(null);
-            for (let i = 0; i < column.length; i++) {
-                newColumn[i] = column[i];
-            }
-            
-            // Проверяем, изменился ли столбец
-            let changed = false;
-            for (let y = 0; y < this.size; y++) {
-                if (this.cells[y][x] !== newColumn[y]) {
-                    changed = true;
-                    break;
-                }
-            }
-            
-            if (changed) {
-                moved = true;
-                for (let y = 0; y < this.size; y++) {
-                    this.cells[y][x] = newColumn[y];
-                }
-            }
+            // Первый элемент становится последним
+            this.cells[this.size - 1][x] = first;
         }
-        return moved;
+        return true; // Циклический сдвиг всегда возможен
     }
     
-    // Сдвиг вниз
+    // Циклический сдвиг вниз (тор - первый элемент становится последним)
     moveDown() {
-        let moved = false;
         for (let x = 0; x < this.size; x++) {
-            const column = [];
-            // Собираем все непустые клетки
-            for (let y = 0; y < this.size; y++) {
-                if (this.cells[y][x] !== null) {
-                    column.push(this.cells[y][x]);
-                }
+            const last = this.cells[this.size - 1][x];
+            // Сдвигаем все элементы вниз
+            for (let y = this.size - 1; y > 0; y--) {
+                this.cells[y][x] = this.cells[y - 1][x];
             }
-            
-            // Заполняем столбец снизу вверх
-            const newColumn = new Array(this.size).fill(null);
-            for (let i = 0; i < column.length; i++) {
-                newColumn[this.size - 1 - i] = column[column.length - 1 - i];
-            }
-            
-            // Проверяем, изменился ли столбец
-            let changed = false;
-            for (let y = 0; y < this.size; y++) {
-                if (this.cells[y][x] !== newColumn[y]) {
-                    changed = true;
-                    break;
-                }
-            }
-            
-            if (changed) {
-                moved = true;
-                for (let y = 0; y < this.size; y++) {
-                    this.cells[y][x] = newColumn[y];
-                }
-            }
+            // Последний элемент становится первым
+            this.cells[0][x] = last;
         }
-        return moved;
+        return true; // Циклический сдвиг всегда возможен
     }
     
     // Проверка, собрано ли слово
