@@ -28,7 +28,6 @@ export class Board2048 {
         this.targetWord = word.toUpperCase();
         this.reset();
         
-        // Размещаем буквы слова случайным образом на доске
         const letters = this.targetWord.split('');
         const positions = [];
         
@@ -43,13 +42,26 @@ export class Board2048 {
             }
         }
         
-        // Размещаем буквы (повторяем буквы слова, если нужно)
-        let letterIndex = 0;
+        // Сначала размещаем все уникальные буквы из слова (гарантируем наличие всех букв)
+        const uniqueLetters = [...new Set(letters)];
+        const lettersToPlace = [...uniqueLetters];
+        
+        // Добавляем остальные буквы (с повторениями) до нужного количества
+        while (lettersToPlace.length < WORD2048_CONFIG.INITIAL_LETTERS_COUNT) {
+            const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+            lettersToPlace.push(randomLetter);
+        }
+        
+        // Перемешиваем буквы для случайного размещения
+        for (let i = lettersToPlace.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [lettersToPlace[i], lettersToPlace[j]] = [lettersToPlace[j], lettersToPlace[i]];
+        }
+        
+        // Размещаем буквы на доске
         for (let i = 0; i < positions.length; i++) {
             const [x, y] = positions[i].split(',').map(Number);
-            const letter = letters[letterIndex % letters.length];
-            this.cells[y][x] = letter;
-            letterIndex++;
+            this.cells[y][x] = lettersToPlace[i];
         }
     }
     
