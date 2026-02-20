@@ -535,7 +535,7 @@ function simulatePlayer(pKey) {
 
       for (const a of anchors) {
         if (a.chancePerDay > 0 && Math.random() < a.chancePerDay) {
-          e.v = Math.min(cap, e.v + a.energy);
+          e.v += a.energy;
           rubles += a.rub;
           const sp = spendEnergy(e, selectedGames);
           coins += sp.coins;
@@ -543,8 +543,8 @@ function simulatePlayer(pKey) {
         }
       }
 
-      if (hasSub && day % 7 === 0) {
-        e.v = Math.min(cap, e.v + subEnergy);
+      if (hasSub) {
+        e.v += subEnergy;
         const sp = spendEnergy(e, selectedGames);
         coins += sp.coins;
         rubles += sp.rub;
@@ -732,7 +732,7 @@ function renderPlayers() {
           </label>
         </div>
         <div class="field" id="${p.key}_subE_wrap" style="display:${state[p.key + '_sub'] ? 'flex' : 'none'}">
-          <label>Подписка энергия/нед</label>
+          <label>Подписка энергия/день</label>
           <input type="number" data-key="${p.key}_subE" value="${state[p.key + '_subE']}" min="0" step="1">
         </div>
       </div>
