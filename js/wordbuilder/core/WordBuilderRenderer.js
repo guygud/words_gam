@@ -13,14 +13,37 @@ export class WordBuilderRenderer {
     renderLetters(letters, goldenLetter) {
         this.lettersContainer.innerHTML = '';
 
-        letters.forEach((letter, index) => {
+        const goldenIdx = letters.indexOf(goldenLetter);
+        const petals = [];
+        letters.forEach((l, i) => { if (i !== goldenIdx) petals.push({ letter: l, index: i }); });
+
+        const cx = 130, cy = 130, radius = 85;
+
+        // Золотая буква — центр цветка
+        if (goldenIdx >= 0) {
+            const tile = document.createElement('div');
+            tile.className = 'letter-tile golden';
+            tile.textContent = letters[goldenIdx].toUpperCase();
+            tile.dataset.index = goldenIdx;
+            tile.style.left = cx + 'px';
+            tile.style.top = cy + 'px';
+            tile.style.transform = 'translate(-50%, -50%)';
+            this.lettersContainer.appendChild(tile);
+        }
+
+        // Лепестки вокруг центра
+        petals.forEach((p, i) => {
+            const angle = (Math.PI * 2 * i / petals.length) - Math.PI / 2;
+            const x = cx + Math.cos(angle) * radius;
+            const y = cy + Math.sin(angle) * radius;
+
             const tile = document.createElement('div');
             tile.className = 'letter-tile';
-            if (letter === goldenLetter) {
-                tile.classList.add('golden');
-            }
-            tile.textContent = letter.toUpperCase();
-            tile.dataset.index = index;
+            tile.textContent = p.letter.toUpperCase();
+            tile.dataset.index = p.index;
+            tile.style.left = x + 'px';
+            tile.style.top = y + 'px';
+            tile.style.transform = 'translate(-50%, -50%)';
             this.lettersContainer.appendChild(tile);
         });
     }
