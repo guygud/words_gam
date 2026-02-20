@@ -137,7 +137,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 
 .players-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -154,9 +154,8 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
   border-bottom: 1px solid var(--border);
 }
 .player-col:nth-child(1) .player-header { background: #1a2a1a; color: var(--green); }
-.player-col:nth-child(2) .player-header { background: #1a2a2a; color: #5cc; }
-.player-col:nth-child(3) .player-header { background: #2a2a1a; color: var(--yellow); }
-.player-col:nth-child(4) .player-header { background: #2a1a1a; color: var(--red); }
+.player-col:nth-child(2) .player-header { background: #2a2a1a; color: var(--yellow); }
+.player-col:nth-child(3) .player-header { background: #2a1a1a; color: var(--red); }
 
 .player-params { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
 
@@ -203,7 +202,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 
 .summary-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-bottom: 16px;
 }
@@ -225,9 +224,8 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
   margin-top: 4px;
 }
 .summary-card:nth-child(1) .days { color: var(--green); }
-.summary-card:nth-child(2) .days { color: #5cc; }
-.summary-card:nth-child(3) .days { color: var(--yellow); }
-.summary-card:nth-child(4) .days { color: var(--red); }
+.summary-card:nth-child(2) .days { color: var(--yellow); }
+.summary-card:nth-child(3) .days { color: var(--red); }
 
 .back-link {
   color: var(--text2);
@@ -236,12 +234,30 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 }
 .back-link:hover { color: var(--text); }
 
+.result-table td.out-of-time {
+  color: var(--text2);
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.progress-bar-wrap {
+  margin: 8px 12px;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
 @media (max-width: 1100px) {
-  .players-grid { grid-template-columns: repeat(2, 1fr); }
-  .summary-row { grid-template-columns: repeat(2, 1fr); }
+  .players-grid { grid-template-columns: 1fr; }
+  .summary-row { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 600px) {
-  .players-grid { grid-template-columns: 1fr; }
   .summary-row { grid-template-columns: 1fr; }
   .params-grid.cols-6 { grid-template-columns: repeat(3, 1fr); }
   .params-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
@@ -261,6 +277,19 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
       <button class="btn" onclick="resetDefaults()">Сбросить</button>
     </div>
   </header>
+
+  <!-- Activation duration -->
+  <section>
+    <h2 class="open" onclick="toggleSection(this)">Длительность активации</h2>
+    <div class="collapsible-content open">
+      <div class="params-grid cols-3">
+        <div class="field">
+          <label>Всего дней активации</label>
+          <input type="number" data-key="actDays" value="90" min="1" step="1">
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Summary cards -->
   <div class="summary-row" id="summaryRow"></div>
@@ -344,30 +373,23 @@ const PLAYERS = [
   {
     key: 'p0', name: 'Обычный',
     daysPerWeek: 4,
+    startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 1.5 }],
     games: [0, 1],
-    subscription: false,
   },
   {
-    key: 'p1', name: 'Обычный + Альфа-Смарт',
-    daysPerWeek: 4,
-    anchorsPerWeek: [{ type: 0, count: 1.5 }],
-    games: [0, 1],
-    subscription: true,
-  },
-  {
-    key: 'p2', name: 'Фродер',
+    key: 'p1', name: 'Фродер',
     daysPerWeek: 7,
+    startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 2 }, { type: 1, count: 2 }],
     games: [3],
-    subscription: false,
   },
   {
-    key: 'p3', name: 'Вкладывается',
+    key: 'p2', name: 'Вкладывается',
     daysPerWeek: 7,
+    startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 2 }, { type: 1, count: 2 }, { type: 2, count: 1 }],
     games: [3],
-    subscription: false,
   },
 ];
 
@@ -376,14 +398,14 @@ let state = buildDefaultState();
 
 function buildDefaultState() {
   const s = {};
+  s.actDays = 90;
   ZONES.forEach(z => s[z.key] = z.cost);
   ENERGY_LEVELS.forEach(e => { s[e.key + '_cap'] = e.cap; s[e.key + '_rpd'] = e.regenPerDay; });
   GAMES.forEach(g => { s[g.key + '_cost'] = g.energyCost; s[g.key + '_reward'] = g.reward; });
   ANCHOR_TYPES.forEach(a => s[a.key] = a.energy);
   PLAYERS.forEach(p => {
     s[p.key + '_days'] = p.daysPerWeek;
-    s[p.key + '_sub'] = p.subscription ? 1 : 0;
-    s[p.key + '_subE'] = 10;
+    s[p.key + '_start'] = p.startDay;
     ANCHOR_TYPES.forEach((a, ai) => {
       const found = p.anchorsPerWeek.find(x => x.type === ai);
       s[p.key + '_' + a.key] = found ? found.count : 0;
@@ -428,8 +450,9 @@ function getEnergyLevel(zoneIndex) {
 
 function calcPlayer(pKey) {
   const daysPerWeek = state[pKey + '_days'];
-  const hasSub = state[pKey + '_sub'];
-  const subEnergy = state[pKey + '_subE'];
+  const startDay = state[pKey + '_start'];
+  const activationDays = state.actDays;
+  const availableDays = Math.max(0, activationDays - startDay);
 
   let anchorEnergyPerWeek = 0;
   ANCHOR_TYPES.forEach(a => {
@@ -458,8 +481,7 @@ function calcPlayer(pKey) {
     const zoneCost = state[z.key];
 
     const energyFromRegen = regenPerDay * daysPerWeek;
-    const subPerWeek = hasSub ? subEnergy : 0;
-    const totalEnergyPerWeek = energyFromRegen + anchorEnergyPerWeek + subPerWeek;
+    const totalEnergyPerWeek = energyFromRegen + anchorEnergyPerWeek;
 
     let coinsPerWeek = 0;
     let remainingEnergy = totalEnergyPerWeek;
@@ -474,6 +496,8 @@ function calcPlayer(pKey) {
     const daysForZone = coinsPerDay > 0 ? zoneCost / coinsPerDay : Infinity;
     cumDays += daysForZone;
 
+    const fitsInTime = cumDays <= availableDays;
+
     rows.push({
       zone: z.name,
       cost: zoneCost,
@@ -481,10 +505,11 @@ function calcPlayer(pKey) {
       coinsPerDay: coinsPerDay,
       days: daysForZone,
       cumDays: cumDays,
+      fitsInTime: fitsInTime,
     });
   });
 
-  return rows;
+  return { rows, availableDays };
 }
 
 // ─── Rendering ────────────────────────────────────────────
@@ -564,8 +589,6 @@ function renderPlayers() {
       </div>`;
     }).join('');
 
-    const subChecked = state[p.key + '_sub'] ? 'checked' : '';
-
     return `<div class="player-col">
       <div class="player-header">${p.name}</div>
       <div class="player-params">
@@ -573,18 +596,16 @@ function renderPlayers() {
           <label>Дней в неделю</label>
           <input type="number" data-key="${p.key}_days" value="${state[p.key + '_days']}" min="1" max="7" step="1">
         </div>
+        <div class="field">
+          <label>День подключения</label>
+          <input type="number" data-key="${p.key}_start" value="${state[p.key + '_start']}" min="0" step="1">
+        </div>
         ${anchorsHTML}
         <div style="font-size:0.75rem;color:var(--text2);margin-top:4px">Мини-игры:</div>
         ${gamesHTML}
-        <div class="field">
-          <label class="checkbox-row">
-            <input type="checkbox" data-key="${p.key}_sub" ${subChecked}> Альфа-Смарт
-          </label>
-        </div>
-        <div class="field" id="${p.key}_subE_wrap" style="display:${state[p.key + '_sub'] ? 'flex' : 'none'}">
-          <label>Подписка энергия/нед</label>
-          <input type="number" data-key="${p.key}_subE" value="${state[p.key + '_subE']}" min="0" step="1">
-        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="bar_${p.key}"></div>
       </div>
       <div class="result-table-wrap">
         <table class="result-table" id="table_${p.key}">
@@ -604,15 +625,24 @@ function renderPlayers() {
 function renderResults() {
   const summaryRow = document.getElementById('summaryRow');
   const summaryCards = [];
+  const activationDays = state.actDays;
 
   PLAYERS.forEach((p, pi) => {
-    const rows = calcPlayer(p.key);
+    const { rows, availableDays } = calcPlayer(p.key);
     const tbody = document.querySelector(`#table_${p.key} tbody`);
     const totalCost = rows.reduce((s, r) => s + r.cost, 0);
     const totalDays = rows[rows.length - 1].cumDays;
+    const zonesCompleted = rows.filter(r => r.fitsInTime).length;
+    const progressPct = Math.min(100, (zonesCompleted / rows.length) * 100);
+
+    const bar = document.getElementById('bar_' + p.key);
+    if (bar) {
+      bar.style.width = progressPct + '%';
+      bar.style.background = progressPct >= 100 ? 'var(--green)' : progressPct >= 50 ? 'var(--yellow)' : 'var(--red)';
+    }
 
     tbody.innerHTML = rows.map(r => {
-      const dClass = r.days < 7 ? 'fast' : r.days < 21 ? 'medium' : 'slow';
+      const dClass = !r.fitsInTime ? 'out-of-time' : r.days < 7 ? 'fast' : r.days < 21 ? 'medium' : 'slow';
       return `<tr>
         <td>${r.zone}</td>
         <td>${r.cost}</td>
@@ -624,13 +654,19 @@ function renderResults() {
       <td>Итого</td>
       <td>${totalCost}</td>
       <td></td>
-      <td></td>
+      <td>${zonesCompleted}/${rows.length} зон</td>
       <td>${totalDays === Infinity ? '∞' : totalDays.toFixed(1)}</td>
     </tr>`;
 
+    const startDay = state[p.key + '_start'];
+    const startLabel = startDay > 0 ? `<br><span style="font-size:0.7rem">старт: день ${startDay}</span>` : '';
+    const fitsLabel = totalDays <= availableDays
+      ? `<span style="font-size:0.7rem;color:var(--green)">успевает</span>`
+      : `<span style="font-size:0.7rem;color:var(--red)">${zonesCompleted}/${rows.length} зон за ${availableDays}д</span>`;
+
     summaryCards.push(`<div class="summary-card">
       <div class="days">${totalDays === Infinity ? '∞' : totalDays.toFixed(0)}</div>
-      <div class="label">${p.name}<br>дней до финала</div>
+      <div class="label">${p.name}${startLabel}<br>${fitsLabel}</div>
     </div>`);
   });
 
@@ -654,11 +690,6 @@ function setupListeners() {
 
     if (el.type === 'checkbox') {
       state[key] = el.checked ? 1 : 0;
-      if (key.endsWith('_sub')) {
-        const pKey = key.replace('_sub', '');
-        const wrap = document.getElementById(pKey + '_subE_wrap');
-        if (wrap) wrap.style.display = el.checked ? 'flex' : 'none';
-      }
     } else {
       state[key] = parseFloat(el.value) || 0;
     }
@@ -691,18 +722,20 @@ function copyShareLink() {
 
 function buildTableHTML(pKey) {
   const p = PLAYERS.find(x => x.key === pKey);
-  const rows = calcPlayer(pKey);
+  const { rows, availableDays } = calcPlayer(pKey);
   const totalCost = rows.reduce((s, r) => s + r.cost, 0);
   const totalDays = rows[rows.length - 1].cumDays;
+  const zonesCompleted = rows.filter(r => r.fitsInTime).length;
 
-  let html = `<table><thead><tr><th colspan="5" style="text-align:left">${p.name}</th></tr>`;
+  let html = `<table><thead><tr><th colspan="5" style="text-align:left">${p.name} (${availableDays} дней)</th></tr>`;
   html += '<tr><th>Зона</th><th>Стоимость</th><th>Монет/день</th><th>Дней</th><th>Всего дней</th></tr></thead><tbody>';
   rows.forEach(r => {
-    html += `<tr><td>${r.zone}</td><td>${r.cost}</td><td>${r.coinsPerDay.toFixed(1)}</td>`;
+    const style = !r.fitsInTime ? ' style="color:#888"' : '';
+    html += `<tr${style}><td>${r.zone}</td><td>${r.cost}</td><td>${r.coinsPerDay.toFixed(1)}</td>`;
     html += `<td>${r.days === Infinity ? '∞' : r.days.toFixed(1)}</td>`;
     html += `<td>${r.cumDays === Infinity ? '∞' : r.cumDays.toFixed(1)}</td></tr>`;
   });
-  html += `<tr><td><b>Итого</b></td><td><b>${totalCost}</b></td><td></td><td></td>`;
+  html += `<tr><td><b>Итого</b></td><td><b>${totalCost}</b></td><td></td><td><b>${zonesCompleted}/${rows.length}</b></td>`;
   html += `<td><b>${totalDays === Infinity ? '∞' : totalDays.toFixed(1)}</b></td></tr>`;
   html += '</tbody></table>';
   return html;
@@ -710,18 +743,19 @@ function buildTableHTML(pKey) {
 
 function buildTableTSV(pKey) {
   const p = PLAYERS.find(x => x.key === pKey);
-  const rows = calcPlayer(pKey);
+  const { rows, availableDays } = calcPlayer(pKey);
   const totalCost = rows.reduce((s, r) => s + r.cost, 0);
   const totalDays = rows[rows.length - 1].cumDays;
+  const zonesCompleted = rows.filter(r => r.fitsInTime).length;
 
-  let tsv = `${p.name}\n`;
+  let tsv = `${p.name} (${availableDays} дней)\n`;
   tsv += 'Зона\tСтоимость\tМонет/день\tДней\tВсего дней\n';
   rows.forEach(r => {
     tsv += `${r.zone}\t${r.cost}\t${r.coinsPerDay.toFixed(1)}\t`;
     tsv += `${r.days === Infinity ? '∞' : r.days.toFixed(1)}\t`;
     tsv += `${r.cumDays === Infinity ? '∞' : r.cumDays.toFixed(1)}\n`;
   });
-  tsv += `Итого\t${totalCost}\t\t\t${totalDays === Infinity ? '∞' : totalDays.toFixed(1)}\n`;
+  tsv += `Итого\t${totalCost}\t\t${zonesCompleted}/${rows.length} зон\t${totalDays === Infinity ? '∞' : totalDays.toFixed(1)}\n`;
   return tsv;
 }
 
