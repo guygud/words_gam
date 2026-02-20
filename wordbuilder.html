@@ -69,6 +69,15 @@
             content: "💰 ";
         }
         
+        .word-count-display {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
         .new-set-btn {
             background: #667eea;
             color: white;
@@ -132,9 +141,8 @@
             color: #333;
         }
         
-        .letter-tile.used {
-            opacity: 0.4;
-            cursor: not-allowed;
+        .letter-tile:active {
+            transform: scale(0.95);
         }
         
         .word-input-section {
@@ -315,6 +323,7 @@
         
         <div class="game-header">
             <div class="coins-display" id="coinsDisplay">0</div>
+            <div class="word-count-display" id="wordCountDisplay">Найдено: <span id="wordCount">0 / 0</span></div>
             <button class="new-set-btn" id="newSetBtn">Новый набор букв</button>
         </div>
         

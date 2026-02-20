@@ -1,10 +1,12 @@
-// Конфигурация игры "Словостроитель"
-
 export const WORD_BUILDER_CONFIG = {
-    // Количество букв в наборе
     LETTERS_COUNT: 7,
-    
-    // Система начисления монет за слова
+    MIN_WORD_LENGTH: 4,
+
+    // Rejection sampling
+    MIN_VALID_WORDS: 10,
+    MAX_VALID_WORDS: 50,
+    MAX_GENERATION_ATTEMPTS: 50,
+
     COINS_REWARDS: {
         4: 3,
         5: 6,
@@ -13,11 +15,9 @@ export const WORD_BUILDER_CONFIG = {
         8: 25,
         9: 30,
         10: 40,
-        // 11 и более букв
         default: 100
     },
-    
-    // Частоты букв русского алфавита
+
     LETTER_FREQUENCIES: {
         'о': 0.1118, 'е': 0.0875, 'а': 0.0764, 'и': 0.0709, 'н': 0.0678,
         'т': 0.0609, 'с': 0.0497, 'л': 0.0496, 'в': 0.0438, 'р': 0.0423,
@@ -27,11 +27,7 @@ export const WORD_BUILDER_CONFIG = {
         'ш': 0.0072, 'ю': 0.0047, 'ц': 0.0039, 'э': 0.0036, 'щ': 0.0030,
         'ф': 0.0021, 'ё': 0.0020, 'ъ': 0.0002
     },
-    
-    // Минимальная длина слова
-    MIN_WORD_LENGTH: 4,
-    
-    // Получить награду за слово
+
     getCoinsForWord(wordLength) {
         if (wordLength < this.MIN_WORD_LENGTH) return 0;
         if (wordLength >= 11) return this.COINS_REWARDS.default;
