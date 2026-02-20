@@ -592,11 +592,13 @@ function aggregate(allZoneDays, numZones, availableDays) {
 }
 
 function runSimulation() {
+  const t0 = performance.now();
   simCache = {};
   PLAYERS.forEach(p => { simCache[p.key] = simulatePlayer(p.key); });
+  const elapsed = (performance.now() - t0).toFixed(0);
   renderResults();
   updateURL();
-  showToast(`Симуляция: ${state.numRuns} прогонов`);
+  showToast(`${state.numRuns} прогонов × ${PLAYERS.length} игрока за ${elapsed} мс`);
 }
 
 // ─── Rendering ────────────────────────────────────────────
