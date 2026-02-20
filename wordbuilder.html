@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Словостроитель</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .coins-display {
+            background: linear-gradient(135deg, #f0c040 0%, #e0a020 100%);
+            color: #333;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .coins-display::before {
+            content: "💰 ";
+        }
+        
+        .new-set-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        .new-set-btn:hover {
+            background: #5568d3;
+        }
+        
+        .letters-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .letters-container {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .letter-tile {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f5f5;
+            border: 3px solid #ddd;
+            border-radius: 10px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        
+        .letter-tile:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .letter-tile.golden {
+            background: linear-gradient(135deg, #f0c040 0%, #e0a020 100%);
+            border-color: #d09010;
+            color: #333;
+        }
+        
+        .letter-tile.used {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .word-input-section {
+            margin-bottom: 30px;
+        }
+        
+        .word-display {
+            min-height: 80px;
+            background: #f9f9f9;
+            border: 3px dashed #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+        
+        .word-display.empty::before {
+            content: "Нажмите на буквы или введите слово...";
+            color: #999;
+            font-style: italic;
+        }
+        
+        .word-letter {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .word-letter:hover {
+            background: #5568d3;
+            transform: scale(1.1);
+        }
+        
+        .word-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-submit {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-submit:hover {
+            background: #45a049;
+        }
+        
+        .btn-submit:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-clear {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-clear:hover {
+            background: #da190b;
+        }
+        
+        .words-found-section {
+            margin-top: 30px;
+        }
+        
+        .words-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .word-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .word-badge .coins {
+            background: #f0c040;
+            color: #333;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: 600;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .coins-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        
+        .coins-info h3 {
+            margin-bottom: 10px;
+            color: #856404;
+        }
+        
+        .coins-info table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .coins-info td {
+            padding: 5px;
+            border-bottom: 1px solid #ffeaa7;
+        }
+        
+        .coins-info td:first-child {
+            font-weight: 600;
+        }
+        
+        .coins-info td:last-child {
+            text-align: right;
+            color: #f0c040;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">← Вернуться к играм</a>
+        
+        <h1>🔤 Словостроитель</h1>
+        
+        <div class="game-header">
+            <div class="coins-display" id="coinsDisplay">0</div>
+            <button class="new-set-btn" id="newSetBtn">Новый набор букв</button>
+        </div>
+        
+        <div id="message" class="message"></div>
+        
+        <div class="letters-section">
+            <div class="section-title">Доступные буквы:</div>
+            <div class="letters-container" id="lettersContainer"></div>
+        </div>
+        
+        <div class="word-input-section">
+            <div class="section-title">Ваше слово:</div>
+            <div class="word-display empty" id="wordDisplay"></div>
+            <div class="word-actions">
+                <button class="btn btn-submit" id="submitBtn" disabled>Найти слово</button>
+                <button class="btn btn-clear" id="clearBtn">Очистить</button>
+            </div>
+        </div>
+        
+        <div class="words-found-section">
+            <div class="section-title">Найденные слова:</div>
+            <div class="words-list" id="wordsList"></div>
+        </div>
+        
+        <div class="coins-info">
+            <h3>💰 Система начисления монет:</h3>
+            <table>
+                <tr><td>4 буквы</td><td>3 монеты</td></tr>
+                <tr><td>5 букв</td><td>6 монет</td></tr>
+                <tr><td>6 букв</td><td>10 монет</td></tr>
+                <tr><td>7 букв</td><td>20 монет</td></tr>
+                <tr><td>8 букв</td><td>25 монет</td></tr>
+                <tr><td>9 букв</td><td>30 монет</td></tr>
+                <tr><td>10 букв</td><td>40 монет</td></tr>
+                <tr><td>11+ букв</td><td>100 монет</td></tr>
+            </table>
+        </div>
+    </div>
+    
+    <script type="module" src="js/wordbuilder/main.js"></script>
+</body>
+</html>
