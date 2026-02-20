@@ -366,16 +366,16 @@ const ENERGY_LEVELS = [
 ];
 
 const GAMES = [
-  { key: 'gA', name: 'Игра A', energyCost: 4, reward: 20 },
-  { key: 'gB', name: 'Игра B', energyCost: 8, reward: 50 },
-  { key: 'gC', name: 'Слова (C)', energyCost: 1, reward: 6 },
-  { key: 'gD', name: 'PvP (D)', energyCost: 10, reward: 120 },
+  { key: 'gA', name: 'Игра A', energyCost: 4, reward: 20, rubPrice: 0 },
+  { key: 'gB', name: 'Игра B', energyCost: 8, reward: 50, rubPrice: 0 },
+  { key: 'gC', name: 'Слова (C)', energyCost: 1, reward: 6, rubPrice: 0 },
+  { key: 'gD', name: 'PvP (D)', energyCost: 10, reward: 120, rubPrice: 10 },
 ];
 
 const ANCHOR_TYPES = [
-  { key: 'aL', name: 'Лёгкий', energy: 3 },
-  { key: 'aM', name: 'Средний', energy: 6 },
-  { key: 'aH', name: 'Тяжёлый', energy: 13 },
+  { key: 'aL', name: 'Лёгкий', energy: 3, rubPrice: 10 },
+  { key: 'aM', name: 'Средний', energy: 6, rubPrice: 50 },
+  { key: 'aH', name: 'Тяжёлый', energy: 13, rubPrice: 100 },
 ];
 
 const PLAYERS = [
@@ -415,8 +415,8 @@ function buildDefaultState() {
   s.numRuns = 1000;
   ZONES.forEach(z => s[z.key] = z.cost);
   ENERGY_LEVELS.forEach(e => { s[e.key + '_cap'] = e.cap; s[e.key + '_rph'] = e.regenPerHour; });
-  GAMES.forEach(g => { s[g.key + '_cost'] = g.energyCost; s[g.key + '_reward'] = g.reward; });
-  ANCHOR_TYPES.forEach(a => s[a.key] = a.energy);
+  GAMES.forEach(g => { s[g.key + '_cost'] = g.energyCost; s[g.key + '_reward'] = g.reward; s[g.key + '_rub'] = g.rubPrice; });
+  ANCHOR_TYPES.forEach(a => { s[a.key] = a.energy; s[a.key + '_rub'] = a.rubPrice; });
   PLAYERS.forEach(p => {
     s[p.key + '_days'] = p.daysPerWeek;
     s[p.key + '_sess'] = p.sessionsPerDay;
@@ -464,14 +464,15 @@ function getEnergyLevel(zoneIndex) {
 }
 
 function spendEnergy(energyRef, selectedGames) {
-  let earned = 0;
+  let earned = 0, rub = 0;
   for (const g of selectedGames) {
     while (energyRef.v >= g.cost) {
       energyRef.v -= g.cost;
       earned += g.reward;
+      rub += g.rub;
     }
   }
-  return earned;
+  return { coins: earned, rub };
 }
 
 function simulatePlayer(pKey) {
@@ -487,12 +488,13 @@ function simulatePlayer(pKey) {
   const anchors = ANCHOR_TYPES.map(a => ({
     chancePerDay: (state[pKey + '_' + a.key] || 0) / 7,
     energy: state[a.key],
+    rub: state[a.key + '_rub'],
   }));
 
   const selectedGames = [];
   GAMES.forEach(g => {
     if (state[pKey + '_' + g.key]) {
-      selectedGames.push({ cost: state[g.key + '_cost'], reward: state[g.key + '_reward'] });
+      selectedGames.push({ cost: state[g.key + '_cost'], reward: state[g.key + '_reward'], rub: state[g.key + '_rub'] });
     }
   });
   selectedGames.sort((a, b) => (b.reward / b.cost) - (a.reward / a.cost));
@@ -500,9 +502,10 @@ function simulatePlayer(pKey) {
   const zoneCosts = ZONES.map(z => state[z.key]);
   const numZones = zoneCosts.length;
   const allZoneDays = [];
+  const allRubles = [];
 
   for (let run = 0; run < numRuns; run++) {
-    let energy = 0, coins = 0, currentZone = 0;
+    let energy = 0, coins = 0, rubles = 0, currentZone = 0;
     const zoneDays = [];
 
     for (let day = 0; day < actDays; day++) {
@@ -525,19 +528,26 @@ function simulatePlayer(pKey) {
 
       for (let s = 0; s < todaySess; s++) {
         e.v = Math.min(cap, e.v + rph * hPerSess);
-        coins += spendEnergy(e, selectedGames);
+        const sp = spendEnergy(e, selectedGames);
+        coins += sp.coins;
+        rubles += sp.rub;
       }
 
       for (const a of anchors) {
         if (a.chancePerDay > 0 && Math.random() < a.chancePerDay) {
           e.v = Math.min(cap, e.v + a.energy);
-          coins += spendEnergy(e, selectedGames);
+          rubles += a.rub;
+          const sp = spendEnergy(e, selectedGames);
+          coins += sp.coins;
+          rubles += sp.rub;
         }
       }
 
       if (hasSub && day % 7 === 0) {
         e.v = Math.min(cap, e.v + subEnergy);
-        coins += spendEnergy(e, selectedGames);
+        const sp = spendEnergy(e, selectedGames);
+        coins += sp.coins;
+        rubles += sp.rub;
       }
 
       energy = e.v;
@@ -551,9 +561,10 @@ function simulatePlayer(pKey) {
 
     while (zoneDays.length < numZones) zoneDays.push(Infinity);
     allZoneDays.push(zoneDays);
+    allRubles.push(rubles);
   }
 
-  return aggregate(allZoneDays, numZones, availableDays);
+  return aggregate(allZoneDays, allRubles, numZones, availableDays);
 }
 
 function pct(arr, p) {
@@ -563,7 +574,7 @@ function pct(arr, p) {
   return s[i];
 }
 
-function aggregate(allZoneDays, numZones, availableDays) {
+function aggregate(allZoneDays, allRubles, numZones, availableDays) {
   const zones = [];
   for (let z = 0; z < numZones; z++) {
     const days = allZoneDays.map(r => r[z]);
@@ -588,6 +599,9 @@ function aggregate(allZoneDays, numZones, availableDays) {
     totalMedian: pct(totals, 50),
     totalP90: pct(totals, 90),
     totalCompletionRate: totals.filter(d => d < Infinity).length / totals.length,
+    rubMedian: pct(allRubles, 50),
+    rubP10: pct(allRubles, 10),
+    rubP90: pct(allRubles, 90),
   };
 }
 
@@ -645,6 +659,10 @@ function renderGameParams() {
         <label>Награда (монеты)</label>
         <input type="number" data-key="${g.key}_reward" value="${state[g.key + '_reward']}" min="0" step="1">
       </div>
+      <div class="field">
+        <label>Цена (₽)</label>
+        <input type="number" data-key="${g.key}_rub" value="${state[g.key + '_rub']}" min="0" step="1">
+      </div>
       <div style="font-size:0.75rem;color:var(--text2);font-family:var(--mono)">
         ${(state[g.key + '_reward'] / state[g.key + '_cost']).toFixed(2)} м/э
       </div>
@@ -655,9 +673,16 @@ function renderGameParams() {
 function renderAnchorParams() {
   const el = document.getElementById('anchorParams');
   el.innerHTML = ANCHOR_TYPES.map(a =>
-    `<div class="field">
-      <label>${a.name} (энергия)</label>
-      <input type="number" data-key="${a.key}" value="${state[a.key]}" min="0" step="1">
+    `<div style="display:flex;flex-direction:column;gap:4px">
+      <span style="font-size:0.8rem;color:var(--text2)">${a.name}</span>
+      <div class="field">
+        <label>Энергия</label>
+        <input type="number" data-key="${a.key}" value="${state[a.key]}" min="0" step="1">
+      </div>
+      <div class="field">
+        <label>Выручка (₽)</label>
+        <input type="number" data-key="${a.key}_rub" value="${state[a.key + '_rub']}" min="0" step="1">
+      </div>
     </div>`
   ).join('');
 }
@@ -717,7 +742,7 @@ function renderPlayers() {
       <div class="result-table-wrap">
         <table class="result-table" id="table_${p.key}">
           <thead>
-            <tr><th>Зона</th><th>Стоим.</th><th>P10</th><th>Медиана</th><th>P90</th></tr>
+            <tr><th>Зона</th><th>Стоим.</th><th>P10</th><th>Медиана</th><th>P90</th><th>₽</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -740,7 +765,7 @@ function renderResults() {
     if (!sim) return;
 
     const tbody = document.querySelector(`#table_${p.key} tbody`);
-    const { zones, availableDays, totalP10, totalMedian, totalP90, totalCompletionRate } = sim;
+    const { zones, availableDays, totalP10, totalMedian, totalP90, totalCompletionRate, rubMedian, rubP10, rubP90 } = sim;
 
     const zonesCompleted = zones.filter(z => z.fitsInTime).length;
     const progressPct = Math.min(100, (zonesCompleted / zones.length) * 100);
@@ -752,6 +777,7 @@ function renderResults() {
     }
 
     const totalCost = zones.reduce((s, z) => s + z.cost, 0);
+    const fmtR = v => v === Infinity ? '∞' : v.toFixed(0);
 
     tbody.innerHTML = zones.map(z => {
       const dClass = !z.fitsInTime ? 'out-of-time' : z.median < 7 ? 'fast' : z.median < 21 ? 'medium' : 'slow';
@@ -761,6 +787,7 @@ function renderResults() {
         <td class="${dClass}" style="font-size:0.7rem">${fmtD(z.p10)}</td>
         <td class="${dClass}"><b>${fmtD(z.median)}</b></td>
         <td class="${dClass}" style="font-size:0.7rem">${fmtD(z.p90)}</td>
+        <td></td>
       </tr>`;
     }).join('') + `<tr>
       <td>Итого</td>
@@ -768,6 +795,7 @@ function renderResults() {
       <td style="font-size:0.7rem">${fmtD(totalP10)}</td>
       <td><b>${fmtD(totalMedian)}</b></td>
       <td style="font-size:0.7rem">${fmtD(totalP90)}</td>
+      <td><b>${fmtR(rubMedian)}₽</b></td>
     </tr>`;
 
     const startDay = state[p.key + '_start'];
@@ -777,10 +805,11 @@ function renderResults() {
       ? `<span style="font-size:0.7rem;color:var(--green)">${pctDone}% успевают</span>`
       : `<span style="font-size:0.7rem;color:var(--red)">${zonesCompleted}/${zones.length} зон (${pctDone}%)</span>`;
     const rangeLabel = `<span style="font-size:0.65rem;color:var(--text2)">${fmtD(totalP10)}–${fmtD(totalP90)} дн</span>`;
+    const rubLabel = `<span style="font-size:0.7rem;color:var(--green)">${fmtR(rubMedian)}₽</span> <span style="font-size:0.6rem;color:var(--text2)">(${fmtR(rubP10)}–${fmtR(rubP90)})</span>`;
 
     summaryCards.push(`<div class="summary-card">
       <div class="days">${fmtD(totalMedian)}</div>
-      <div class="label">${p.name}${startLabel}<br>${fitsLabel}<br>${rangeLabel}</div>
+      <div class="label">${p.name}${startLabel}<br>${fitsLabel}<br>${rangeLabel}<br>${rubLabel}</div>
     </div>`);
   });
 
@@ -853,18 +882,20 @@ function buildTableHTML(pKey) {
   const p = PLAYERS.find(x => x.key === pKey);
   const sim = simCache[pKey];
   if (!sim) return '<table></table>';
-  const { zones, availableDays, totalP10, totalMedian, totalP90 } = sim;
+  const { zones, availableDays, totalP10, totalMedian, totalP90, rubMedian } = sim;
   const totalCost = zones.reduce((s, z) => s + z.cost, 0);
+  const fmtR = v => v === Infinity ? '∞' : v.toFixed(0);
 
-  let html = `<table><thead><tr><th colspan="5" style="text-align:left">${p.name} (${availableDays} дней)</th></tr>`;
-  html += '<tr><th>Зона</th><th>Стоимость</th><th>P10</th><th>Медиана</th><th>P90</th></tr></thead><tbody>';
+  let html = `<table><thead><tr><th colspan="6" style="text-align:left">${p.name} (${availableDays} дней)</th></tr>`;
+  html += '<tr><th>Зона</th><th>Стоимость</th><th>P10</th><th>Медиана</th><th>P90</th><th>₽</th></tr></thead><tbody>';
   zones.forEach(z => {
     const style = !z.fitsInTime ? ' style="color:#888"' : '';
     html += `<tr${style}><td>${z.zone}</td><td>${z.cost}</td>`;
-    html += `<td>${fmtD(z.p10)}</td><td><b>${fmtD(z.median)}</b></td><td>${fmtD(z.p90)}</td></tr>`;
+    html += `<td>${fmtD(z.p10)}</td><td><b>${fmtD(z.median)}</b></td><td>${fmtD(z.p90)}</td><td></td></tr>`;
   });
   html += `<tr><td><b>Итого</b></td><td><b>${totalCost}</b></td>`;
-  html += `<td><b>${fmtD(totalP10)}</b></td><td><b>${fmtD(totalMedian)}</b></td><td><b>${fmtD(totalP90)}</b></td></tr>`;
+  html += `<td><b>${fmtD(totalP10)}</b></td><td><b>${fmtD(totalMedian)}</b></td><td><b>${fmtD(totalP90)}</b></td>`;
+  html += `<td><b>${fmtR(rubMedian)}₽</b></td></tr>`;
   html += '</tbody></table>';
   return html;
 }
@@ -873,15 +904,16 @@ function buildTableTSV(pKey) {
   const p = PLAYERS.find(x => x.key === pKey);
   const sim = simCache[pKey];
   if (!sim) return '';
-  const { zones, availableDays, totalP10, totalMedian, totalP90 } = sim;
+  const { zones, availableDays, totalP10, totalMedian, totalP90, rubMedian } = sim;
   const totalCost = zones.reduce((s, z) => s + z.cost, 0);
+  const fmtR = v => v === Infinity ? '∞' : v.toFixed(0);
 
   let tsv = `${p.name} (${availableDays} дней)\n`;
-  tsv += 'Зона\tСтоимость\tP10\tМедиана\tP90\n';
+  tsv += 'Зона\tСтоимость\tP10\tМедиана\tP90\t₽\n';
   zones.forEach(z => {
-    tsv += `${z.zone}\t${z.cost}\t${fmtD(z.p10)}\t${fmtD(z.median)}\t${fmtD(z.p90)}\n`;
+    tsv += `${z.zone}\t${z.cost}\t${fmtD(z.p10)}\t${fmtD(z.median)}\t${fmtD(z.p90)}\t\n`;
   });
-  tsv += `Итого\t${totalCost}\t${fmtD(totalP10)}\t${fmtD(totalMedian)}\t${fmtD(totalP90)}\n`;
+  tsv += `Итого\t${totalCost}\t${fmtD(totalP10)}\t${fmtD(totalMedian)}\t${fmtD(totalP90)}\t${fmtR(rubMedian)}₽\n`;
   return tsv;
 }
 
