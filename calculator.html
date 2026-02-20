@@ -383,25 +383,25 @@ const PLAYERS = [
     key: 'p0', name: 'Обычный',
     daysPerWeek: 4, sessionsPerDay: 1.5, startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 1.5 }],
-    games: [0, 1], subscription: false,
+    games: [0, 2], subscription: false,
   },
   {
     key: 'p1', name: 'Обычный + Подписка',
     daysPerWeek: 4, sessionsPerDay: 1.5, startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 1.5 }],
-    games: [0, 1], subscription: true,
+    games: [0, 1, 2], subscription: true,
   },
   {
     key: 'p2', name: 'Фродер',
     daysPerWeek: 7, sessionsPerDay: 4, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 2 }, { type: 1, count: 2 }],
-    games: [3], subscription: false,
+    anchorsPerWeek: [{ type: 0, count: 1 }],
+    games: [0, 1, 2], subscription: false,
   },
   {
     key: 'p3', name: 'Вкладывается',
     daysPerWeek: 7, sessionsPerDay: 2.5, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 2 }, { type: 1, count: 2 }, { type: 2, count: 1 }],
-    games: [3], subscription: false,
+    anchorsPerWeek: [{ type: 0, count: 2.5 }, { type: 1, count: 2 }, { type: 2, count: 1.5 }],
+    games: [0, 1, 2, 3], subscription: true,
   },
 ];
 
