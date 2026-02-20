@@ -456,6 +456,13 @@ function updateURL() {
 }
 
 // ─── Monte Carlo Engine ───────────────────────────────────
+function poissonSample(lambda) {
+  if (lambda <= 0) return 0;
+  let L = Math.exp(-lambda), k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k - 1;
+}
+
 function getEnergyLevel(zoneIndex) {
   if (zoneIndex <= 2) return 0;
   if (zoneIndex === 3) return 1;
@@ -465,12 +472,12 @@ function getEnergyLevel(zoneIndex) {
 
 function spendEnergy(energyRef, selectedGames) {
   let earned = 0, rub = 0;
-  for (const g of selectedGames) {
-    while (energyRef.v >= g.cost) {
-      energyRef.v -= g.cost;
-      earned += g.reward;
-      rub += g.rub;
-    }
+  while (true) {
+    const g = selectedGames.find(x => x.cost > 0 && x.cost <= energyRef.v);
+    if (!g) break;
+    energyRef.v -= g.cost;
+    earned += g.reward;
+    rub += g.rub;
   }
   return { coins: earned, rub };
 }
@@ -486,7 +493,7 @@ function simulatePlayer(pKey) {
   const availableDays = Math.max(0, actDays - startDay);
 
   const anchors = ANCHOR_TYPES.map(a => ({
-    chancePerDay: (state[pKey + '_' + a.key] || 0) / 7,
+    perDay: (state[pKey + '_' + a.key] || 0) / 7,
     energy: state[a.key],
     rub: state[a.key + '_rub'],
   }));
@@ -497,7 +504,7 @@ function simulatePlayer(pKey) {
       selectedGames.push({ cost: state[g.key + '_cost'], reward: state[g.key + '_reward'], rub: state[g.key + '_rub'] });
     }
   });
-  selectedGames.sort((a, b) => (b.reward / b.cost) - (a.reward / a.cost));
+  selectedGames.sort((a, b) => (b.cost > 0 ? b.reward / b.cost : 0) - (a.cost > 0 ? a.reward / a.cost : 0));
 
   const zoneCosts = ZONES.map(z => state[z.key]);
   const numZones = zoneCosts.length;
@@ -523,7 +530,9 @@ function simulatePlayer(pKey) {
         continue;
       }
 
-      const todaySess = Math.max(1, Math.round(sess + (Math.random() - 0.5)));
+      const base = Math.floor(sess);
+      const frac = sess - base;
+      const todaySess = Math.max(1, base + (Math.random() < frac ? 1 : 0));
       const hPerSess = 24 / todaySess;
       const e = { v: energy };
 
@@ -535,7 +544,8 @@ function simulatePlayer(pKey) {
       }
 
       for (const a of anchors) {
-        if (a.chancePerDay > 0 && Math.random() < a.chancePerDay) {
+        const n = poissonSample(a.perDay);
+        for (let j = 0; j < n; j++) {
           e.v += a.energy;
           rubles += a.rub;
           const sp = spendEnergy(e, selectedGames);
@@ -672,7 +682,7 @@ function renderGameParams() {
         <input type="number" data-key="${g.key}_reward" value="${state[g.key + '_reward']}" min="0" step="1">
       </div>
       <div class="field">
-        <label>Цена (₽)</label>
+        <label>Выручка (₽)</label>
         <input type="number" data-key="${g.key}_rub" value="${state[g.key + '_rub']}" min="0" step="1">
       </div>
       <div style="font-size:0.75rem;color:var(--text2);font-family:var(--mono)">
