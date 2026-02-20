@@ -137,7 +137,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 
 .players-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
 
@@ -154,8 +154,9 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
   border-bottom: 1px solid var(--border);
 }
 .player-col:nth-child(1) .player-header { background: #1a2a1a; color: var(--green); }
-.player-col:nth-child(2) .player-header { background: #2a2a1a; color: var(--yellow); }
-.player-col:nth-child(3) .player-header { background: #2a1a1a; color: var(--red); }
+.player-col:nth-child(2) .player-header { background: #1a2a2a; color: #5cc; }
+.player-col:nth-child(3) .player-header { background: #2a2a1a; color: var(--yellow); }
+.player-col:nth-child(4) .player-header { background: #2a1a1a; color: var(--red); }
 
 .player-params { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
 
@@ -202,7 +203,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 
 .summary-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 16px;
 }
@@ -224,8 +225,9 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
   margin-top: 4px;
 }
 .summary-card:nth-child(1) .days { color: var(--green); }
-.summary-card:nth-child(2) .days { color: var(--yellow); }
-.summary-card:nth-child(3) .days { color: var(--red); }
+.summary-card:nth-child(2) .days { color: #5cc; }
+.summary-card:nth-child(3) .days { color: var(--yellow); }
+.summary-card:nth-child(4) .days { color: var(--red); }
 
 .back-link {
   color: var(--text2);
@@ -254,8 +256,8 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 }
 
 @media (max-width: 1100px) {
-  .players-grid { grid-template-columns: 1fr; }
-  .summary-row { grid-template-columns: repeat(3, 1fr); }
+  .players-grid { grid-template-columns: repeat(2, 1fr); }
+  .summary-row { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
   .summary-row { grid-template-columns: 1fr; }
@@ -376,20 +378,31 @@ const PLAYERS = [
     startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 1.5 }],
     games: [0, 1],
+    subscription: false,
   },
   {
-    key: 'p1', name: 'Фродер',
+    key: 'p1', name: 'Обычный + Подписка',
+    daysPerWeek: 4,
+    startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 1.5 }],
+    games: [0, 1],
+    subscription: true,
+  },
+  {
+    key: 'p2', name: 'Фродер',
     daysPerWeek: 7,
     startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 2 }, { type: 1, count: 2 }],
     games: [3],
+    subscription: false,
   },
   {
-    key: 'p2', name: 'Вкладывается',
+    key: 'p3', name: 'Вкладывается',
     daysPerWeek: 7,
     startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 2 }, { type: 1, count: 2 }, { type: 2, count: 1 }],
     games: [3],
+    subscription: false,
   },
 ];
 
@@ -406,6 +419,8 @@ function buildDefaultState() {
   PLAYERS.forEach(p => {
     s[p.key + '_days'] = p.daysPerWeek;
     s[p.key + '_start'] = p.startDay;
+    s[p.key + '_sub'] = p.subscription ? 1 : 0;
+    s[p.key + '_subE'] = 10;
     ANCHOR_TYPES.forEach((a, ai) => {
       const found = p.anchorsPerWeek.find(x => x.type === ai);
       s[p.key + '_' + a.key] = found ? found.count : 0;
@@ -451,6 +466,8 @@ function getEnergyLevel(zoneIndex) {
 function calcPlayer(pKey) {
   const daysPerWeek = state[pKey + '_days'];
   const startDay = state[pKey + '_start'];
+  const hasSub = state[pKey + '_sub'];
+  const subEnergy = state[pKey + '_subE'];
   const activationDays = state.actDays;
   const availableDays = Math.max(0, activationDays - startDay);
 
@@ -481,7 +498,8 @@ function calcPlayer(pKey) {
     const zoneCost = state[z.key];
 
     const energyFromRegen = regenPerDay * daysPerWeek;
-    const totalEnergyPerWeek = energyFromRegen + anchorEnergyPerWeek;
+    const subPerWeek = hasSub ? subEnergy : 0;
+    const totalEnergyPerWeek = energyFromRegen + anchorEnergyPerWeek + subPerWeek;
 
     let coinsPerWeek = 0;
     let remainingEnergy = totalEnergyPerWeek;
@@ -589,6 +607,8 @@ function renderPlayers() {
       </div>`;
     }).join('');
 
+    const subChecked = state[p.key + '_sub'] ? 'checked' : '';
+
     return `<div class="player-col">
       <div class="player-header">${p.name}</div>
       <div class="player-params">
@@ -603,6 +623,15 @@ function renderPlayers() {
         ${anchorsHTML}
         <div style="font-size:0.75rem;color:var(--text2);margin-top:4px">Мини-игры:</div>
         ${gamesHTML}
+        <div class="field">
+          <label class="checkbox-row">
+            <input type="checkbox" data-key="${p.key}_sub" ${subChecked}> Подписка
+          </label>
+        </div>
+        <div class="field" id="${p.key}_subE_wrap" style="display:${state[p.key + '_sub'] ? 'flex' : 'none'}">
+          <label>Подписка энергия/нед</label>
+          <input type="number" data-key="${p.key}_subE" value="${state[p.key + '_subE']}" min="0" step="1">
+        </div>
       </div>
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill" id="bar_${p.key}"></div>
@@ -690,6 +719,11 @@ function setupListeners() {
 
     if (el.type === 'checkbox') {
       state[key] = el.checked ? 1 : 0;
+      if (key.endsWith('_sub')) {
+        const pKey = key.replace('_sub', '');
+        const wrap = document.getElementById(pKey + '_subE_wrap');
+        if (wrap) wrap.style.display = el.checked ? 'flex' : 'none';
+      }
     } else {
       state[key] = parseFloat(el.value) || 0;
     }
