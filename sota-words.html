@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Анализатор баланса словесной игры</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3344;
+  --text: #e1e4ed;
+  --text2: #8b90a0;
+  --accent: #f0c040;
+  --accent2: #e0a020;
+  --green: #4caf80;
+  --red: #e05555;
+  --blue: #5588dd;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+.container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.subtitle { color: var(--text2); font-size: 0.9rem; margin-bottom: 20px; }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 24px;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 0.9rem;
+  padding: 10px 18px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: var(--font);
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label {
+  font-size: 0.78rem;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+input, select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: var(--accent); }
+input[type=number] { width: 100px; }
+input.letters-input { width: 160px; font-family: var(--mono); font-size: 1.1rem; letter-spacing: 2px; }
+input.golden-input { width: 50px; font-family: var(--mono); font-size: 1.1rem; text-align: center; }
+
+button {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  padding: 8px 20px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: background 0.15s;
+}
+button:hover { background: var(--accent2); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.progress-wrap {
+  width: 100%;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  margin: 12px 0;
+  overflow: hidden;
+  display: none;
+}
+.progress-wrap.visible { display: block; }
+.progress-bar {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.1s;
+  border-radius: 3px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.85rem;
+}
+th, td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  color: var(--text2);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+td { font-family: var(--mono); font-size: 0.85rem; }
+tr:hover { background: var(--surface2); }
+td.num { text-align: right; }
+th.num { text-align: right; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.stat-card .label { font-size: 0.75rem; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-card .value { font-size: 1.4rem; font-weight: 700; font-family: var(--mono); margin-top: 4px; }
+
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 24px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.word-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.word-tag {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-family: var(--mono);
+}
+.word-tag.golden { border-color: var(--accent); color: var(--accent); }
+
+.letter-display {
+  display: inline-flex;
+  gap: 4px;
+  margin: 4px 0;
+}
+.letter-tile {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.letter-tile.golden {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(240, 192, 64, 0.1);
+}
+
+details { margin: 8px 0; }
+details summary {
+  cursor: pointer;
+  color: var(--blue);
+  font-size: 0.85rem;
+  user-select: none;
+}
+details summary:hover { text-decoration: underline; }
+
+.attempt-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin: 10px 0;
+}
+.attempt-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.attempt-num {
+  font-size: 0.75rem;
+  color: var(--text2);
+  font-weight: 700;
+  min-width: 30px;
+}
+.attempt-count {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  gap: 12px;
+}
+.loading-overlay .spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.note {
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 0.83rem;
+  color: var(--text2);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div style="color:var(--text2)">Загрузка словаря...</div>
+</div>
+
+<div class="container">
+  <h1>Анализатор баланса словесной игры</h1>
+  <p class="subtitle" id="dictInfo">Загрузка...</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="mc">Монте-Карло</button>
+    <button class="tab-btn" data-tab="attempts">N попыток</button>
+    <button class="tab-btn" data-tab="lookup">Проверка набора</button>
+  </div>
+
+  <!-- Monte Carlo Tab -->
+  <div class="tab-panel active" id="tab-mc">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Число наборов (K)</label>
+        <input type="number" id="mcK" value="5000" min="100" max="50000">
+      </div>
+      <div class="form-group">
+        <label>Seed</label>
+        <input type="number" id="mcSeed" value="42" min="0">
+      </div>
+      <div class="form-group">
+        <label>Выборка</label>
+        <select id="mcSampling">
+          <option value="without">Без возвращения</option>
+          <option value="with">С возвращением</option>
+        </select>
+      </div>
+      <button id="mcRun">Запустить</button>
+    </div>
+    <div class="note">
+      <strong>Без возвращения</strong> — 7 разных букв, каждая следующая из оставшихся (ближе к тайловым играм).<br>
+      <strong>С возвращением</strong> — 7 независимых выборок, возможны повторы.
+    </div>
+    <div class="progress-wrap" id="mcProgress"><div class="progress-bar" id="mcProgressBar"></div></div>
+    <div id="mcResults"></div>
+  </div>
+
+  <!-- N Attempts Tab -->
+  <div class="tab-panel" id="tab-attempts">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Число попыток (N)</label>
+        <input type="number" id="attN" value="10" min="1" max="1000">
+      </div>
+      <div class="form-group">
+        <label>Seed</label>
+        <input type="number" id="attSeed" value="42" min="0">
+      </div>
+      <div class="form-group">
+        <label>Выборка</label>
+        <select id="attSampling">
+          <option value="without">Без возвращения</option>
+          <option value="with">С возвращением</option>
+        </select>
+      </div>
+      <button id="attRun">Сгенерировать</button>
+    </div>
+    <div id="attResults"></div>
+  </div>
+
+  <!-- Lookup Tab -->
+  <div class="tab-panel" id="tab-lookup">
+    <div class="form-row">
+      <div class="form-group">
+        <label>7 букв набора</label>
+        <input type="text" class="letters-input" id="lookLetters" maxlength="7" placeholder="абвгдео">
+      </div>
+      <div class="form-group">
+        <label>Золотая</label>
+        <input type="text" class="golden-input" id="lookGolden" maxlength="1" placeholder="а">
+      </div>
+      <button id="lookRun">Найти слова</button>
+    </div>
+    <div id="lookResults"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ─── Seedable PRNG (mulberry32) ───
+function mulberry32(seed) {
+  let s = seed | 0;
+  return function() {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ─── Russian letter frequencies ───
+const FREQ = {
+  'о':0.1118,'е':0.0875,'а':0.0764,'и':0.0709,'н':0.0678,
+  'т':0.0609,'с':0.0497,'л':0.0496,'в':0.0438,'р':0.0423,
+  'к':0.0330,'м':0.0317,'д':0.0309,'п':0.0247,'ы':0.0236,
+  'у':0.0222,'б':0.0201,'я':0.0196,'ь':0.0184,'г':0.0172,
+  'з':0.0148,'ч':0.0140,'й':0.0121,'ж':0.0101,'х':0.0095,
+  'ш':0.0072,'ю':0.0047,'ц':0.0039,'э':0.0036,'щ':0.0030,
+  'ф':0.0021,'ё':0.0020,'ъ':0.0002,
+};
+const LETTERS = Object.keys(FREQ);
+const WEIGHTS = Object.values(FREQ);
+const CUMULATIVE = [];
+{
+  let sum = 0;
+  for (const w of WEIGHTS) { sum += w; CUMULATIVE.push(sum); }
+  for (let i = 0; i < CUMULATIVE.length; i++) CUMULATIVE[i] /= sum;
+}
+
+// ─── Sampling ───
+function sampleWithReplacement(rng, k) {
+  const result = [];
+  for (let i = 0; i < k; i++) {
+    const r = rng();
+    for (let j = 0; j < CUMULATIVE.length; j++) {
+      if (r < CUMULATIVE[j]) { result.push(LETTERS[j]); break; }
+    }
+  }
+  return result;
+}
+
+function sampleWithoutReplacement(rng, k) {
+  const available = LETTERS.slice();
+  const weights = WEIGHTS.slice();
+  const result = [];
+  for (let i = 0; i < k && available.length > 0; i++) {
+    let total = 0;
+    for (const w of weights) total += w;
+    const r = rng() * total;
+    let cum = 0;
+    for (let j = 0; j < available.length; j++) {
+      cum += weights[j];
+      if (r < cum) {
+        result.push(available[j]);
+        available.splice(j, 1);
+        weights.splice(j, 1);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+function generateLetterSet(rng, mode) {
+  const letters = mode === 'with'
+    ? sampleWithReplacement(rng, 7)
+    : sampleWithoutReplacement(rng, 7);
+  const golden = letters[Math.floor(rng() * letters.length)];
+  return { letters, golden };
+}
+
+// ─── Word checking core (bitmask-optimized) ───
+// Each Russian letter maps to a bit position (0..32).
+// A word's charset = bitmask of its unique letters.
+// Checking subset: (wordMask & ~setMask) === 0
+// Checking golden: (wordMask & goldenBit) !== 0
+
+const LETTER_BIT = {};
+for (let i = 0; i < LETTERS.length; i++) LETTER_BIT[LETTERS[i]] = i;
+
+function charMask(str) {
+  let mask = 0;
+  for (const ch of str) {
+    const bit = LETTER_BIT[ch];
+    if (bit !== undefined) mask |= (1 << bit);
+  }
+  return mask;
+}
+
+let ALL_NOUNS = [];
+let WORD_MASKS = null;  // Int32Array, one mask per word
+let WORD_LENS = null;   // Uint8Array, one length per word
+
+function initIndex(nouns) {
+  ALL_NOUNS = nouns;
+  WORD_MASKS = new Int32Array(nouns.length);
+  WORD_LENS = new Uint8Array(nouns.length);
+  for (let i = 0; i < nouns.length; i++) {
+    WORD_MASKS[i] = charMask(nouns[i]);
+    WORD_LENS[i] = Math.min(nouns[i].length, 21);
+  }
+}
+
+function countWordsForSet(letters, golden) {
+  const setMask = charMask(letters);
+  const goldenBit = 1 << LETTER_BIT[golden];
+  const invMask = ~setMask;
+  let total = 0;
+  const byLen = {};
+  const validWords = [];
+
+  for (let i = 0; i < WORD_MASKS.length; i++) {
+    const wm = WORD_MASKS[i];
+    const wl = WORD_LENS[i];
+    if (wl < 3) continue;
+    if ((wm & goldenBit) === 0) continue;
+    if ((wm & invMask) !== 0) continue;
+    total++;
+    const len = wl <= 20 ? wl : '20+';
+    byLen[len] = (byLen[len] || 0) + 1;
+    validWords.push(ALL_NOUNS[i]);
+  }
+
+  validWords.sort((a, b) => b.length - a.length || a.localeCompare(b));
+  const top50 = validWords.slice(0, 50);
+  return { total, byLen, top50, validWords };
+}
+
+// Fast count-only version for Monte Carlo (no word collection)
+function countFast(letters, golden) {
+  const setMask = charMask(letters);
+  const goldenBit = 1 << LETTER_BIT[golden];
+  const invMask = ~setMask;
+  let total = 0;
+  const byLen = new Int32Array(22); // index 0..21, use 21 for 20+
+
+  for (let i = 0, len = WORD_MASKS.length; i < len; i++) {
+    const wm = WORD_MASKS[i];
+    if ((wm & goldenBit) === 0) continue;
+    if ((wm & invMask) !== 0) continue;
+    const wl = WORD_LENS[i];
+    if (wl < 3) continue;
+    total++;
+    byLen[wl <= 20 ? wl : 21]++;
+  }
+  return { total, byLen };
+}
+
+// ─── Statistics helpers ───
+function percentile(arr, p) {
+  if (arr.length === 0) return 0;
+  const sorted = arr.slice().sort((a, b) => a - b);
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+function mean(arr) { return arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0; }
+function median(arr) { return percentile(arr, 50); }
+
+// ─── UI helpers ───
+function $(id) { return document.getElementById(id); }
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'className') el.className = v;
+    else if (k === 'innerHTML') el.innerHTML = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2).toLowerCase(), v);
+    else el.setAttribute(k, v);
+  }
+  for (const c of children) {
+    if (typeof c === 'string') el.appendChild(document.createTextNode(c));
+    else if (c) el.appendChild(c);
+  }
+  return el;
+}
+
+function renderLetterTiles(letters, golden) {
+  const wrap = h('div', { className: 'letter-display' });
+  for (const l of letters) {
+    wrap.appendChild(h('div', {
+      className: 'letter-tile' + (l === golden ? ' golden' : ''),
+      innerHTML: l.toUpperCase(),
+    }));
+  }
+  return wrap;
+}
+
+function renderByLenTable(byLen, label) {
+  const table = h('table');
+  const thead = h('tr');
+  thead.appendChild(h('th', null, label || 'Длина'));
+  const lengths = [];
+  for (let n = 3; n <= 20; n++) lengths.push(n);
+  lengths.push('20+');
+  for (const n of lengths) {
+    if (byLen[n]) thead.appendChild(h('th', { className: 'num' }, String(n)));
+  }
+  table.appendChild(thead);
+  const tr = h('tr');
+  tr.appendChild(h('td', null, 'Кол-во'));
+  for (const n of lengths) {
+    if (byLen[n]) tr.appendChild(h('td', { className: 'num' }, String(byLen[n])));
+  }
+  table.appendChild(tr);
+  return table;
+}
+
+// ─── Tab switching ───
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ─── Monte Carlo simulation ───
+async function runMonteCarlo() {
+  const K = parseInt($('mcK').value) || 5000;
+  const seed = parseInt($('mcSeed').value) || 42;
+  const mode = $('mcSampling').value;
+  const rng = mulberry32(seed);
+
+  $('mcRun').disabled = true;
+  const progressWrap = $('mcProgress');
+  const progressBar = $('mcProgressBar');
+  progressWrap.classList.add('visible');
+  progressBar.style.width = '0%';
+  $('mcResults').innerHTML = '';
+
+  const totals = new Float64Array(K);
+  // byLen[lenIdx][i] = count for iteration i; lenIdx 3..21
+  const byLenAll = {};
+  for (let n = 3; n <= 21; n++) byLenAll[n] = new Float64Array(K);
+  const longWordCounts = { 7: 0, 8: 0, 9: 0, 10: 0 };
+
+  const CHUNK = 100;
+  const t0 = performance.now();
+
+  for (let i = 0; i < K; i++) {
+    const { letters, golden } = generateLetterSet(rng, mode);
+    const res = countFast(letters, golden);
+    totals[i] = res.total;
+
+    for (let n = 3; n <= 21; n++) {
+      byLenAll[n][i] = res.byLen[n];
+    }
+    for (const threshold of [7, 8, 9, 10]) {
+      let has = false;
+      for (let n = threshold; n <= 21; n++) {
+        if (res.byLen[n] > 0) { has = true; break; }
+      }
+      if (has) longWordCounts[threshold]++;
+    }
+
+    if (i % CHUNK === 0) {
+      progressBar.style.width = ((i / K) * 100).toFixed(1) + '%';
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+  progressBar.style.width = '100%';
+  await new Promise(r => setTimeout(r, 30));
+  progressWrap.classList.remove('visible');
+
+  const results = $('mcResults');
+
+  const timingNote = h('div', { className: 'note' },
+    `Симуляция: ${K} наборов за ${elapsed} сек (${(K / parseFloat(elapsed)).toFixed(0)} наборов/сек)`);
+  results.appendChild(timingNote);
+
+  // Overall stats
+  const totArr = Array.from(totals);
+  const title1 = h('div', { className: 'section-title' }, 'Общая статистика (допустимых слов на набор)');
+  results.appendChild(title1);
+
+  const grid = h('div', { className: 'stat-grid' });
+  const stats = [
+    ['Среднее', mean(totArr).toFixed(1)],
+    ['Медиана', median(totArr).toFixed(1)],
+    ['P25', percentile(totArr, 25).toFixed(1)],
+    ['P75', percentile(totArr, 75).toFixed(1)],
+    ['Мин', Math.min(...totArr)],
+    ['Макс', Math.max(...totArr)],
+  ];
+  for (const [label, value] of stats) {
+    const card = h('div', { className: 'stat-card' });
+    card.appendChild(h('div', { className: 'label' }, label));
+    card.appendChild(h('div', { className: 'value' }, String(value)));
+    grid.appendChild(card);
+  }
+  results.appendChild(grid);
+
+  // Per-length stats
+  const title2 = h('div', { className: 'section-title' }, 'Среднее число слов по длинам');
+  results.appendChild(title2);
+
+  const lenTable = h('table');
+  const lenHead = h('tr');
+  lenHead.appendChild(h('th', null, 'Длина'));
+  lenHead.appendChild(h('th', { className: 'num' }, 'Среднее'));
+  lenHead.appendChild(h('th', { className: 'num' }, 'Медиана'));
+  lenHead.appendChild(h('th', { className: 'num' }, 'P25'));
+  lenHead.appendChild(h('th', { className: 'num' }, 'P75'));
+  lenTable.appendChild(lenHead);
+
+  const meanByLen = {};
+  for (let n = 3; n <= 12; n++) {
+    const arr = Array.from(byLenAll[n]);
+    const m = mean(arr);
+    meanByLen[n] = m;
+    const tr = h('tr');
+    tr.appendChild(h('td', null, String(n)));
+    tr.appendChild(h('td', { className: 'num' }, m.toFixed(2)));
+    tr.appendChild(h('td', { className: 'num' }, median(arr).toFixed(1)));
+    tr.appendChild(h('td', { className: 'num' }, percentile(arr, 25).toFixed(1)));
+    tr.appendChild(h('td', { className: 'num' }, percentile(arr, 75).toFixed(1)));
+    lenTable.appendChild(tr);
+  }
+  results.appendChild(lenTable);
+
+  // Long word probabilities
+  const title3 = h('div', { className: 'section-title' }, 'Вероятность слова длины ≥ N');
+  results.appendChild(title3);
+
+  const probTable = h('table');
+  const probHead = h('tr');
+  probHead.appendChild(h('th', null, 'N'));
+  probHead.appendChild(h('th', { className: 'num' }, 'P(длина ≥ N)'));
+  probTable.appendChild(probHead);
+  for (const n of [7, 8, 9, 10]) {
+    const tr = h('tr');
+    tr.appendChild(h('td', null, '≥ ' + n));
+    tr.appendChild(h('td', { className: 'num' }, (longWordCounts[n] / K * 100).toFixed(1) + '%'));
+    probTable.appendChild(tr);
+  }
+  results.appendChild(probTable);
+
+  // Reward table
+  const title4 = h('div', { className: 'section-title' }, 'Таблица наград (reward)');
+  results.appendChild(title4);
+
+  const rewardNote = h('div', { className: 'note', innerHTML:
+    'reward(n) = C / (mean_count[n] + ε), нормировано: reward(3) = 10' });
+  results.appendChild(rewardNote);
+
+  const EPS = 0.01;
+  const base = 1 / ((meanByLen[3] || 0) + EPS);
+  const C = 10 / base;
+
+  const rewTable = h('table');
+  const rewHead = h('tr');
+  rewHead.appendChild(h('th', null, 'Длина'));
+  rewHead.appendChild(h('th', { className: 'num' }, 'Среднее кол-во'));
+  rewHead.appendChild(h('th', { className: 'num' }, 'Награда'));
+  rewTable.appendChild(rewHead);
+  for (let n = 3; n <= 12; n++) {
+    const m = meanByLen[n] || 0;
+    const reward = C / (m + EPS);
+    const tr = h('tr');
+    tr.appendChild(h('td', null, String(n)));
+    tr.appendChild(h('td', { className: 'num' }, m.toFixed(2)));
+    tr.appendChild(h('td', { className: 'num' }, reward.toFixed(1)));
+    rewTable.appendChild(tr);
+  }
+  results.appendChild(rewTable);
+
+  $('mcRun').disabled = false;
+}
+
+$('mcRun').addEventListener('click', runMonteCarlo);
+
+// ─── N Attempts ───
+function runAttempts() {
+  const N = parseInt($('attN').value) || 10;
+  const seed = parseInt($('attSeed').value) || 42;
+  const mode = $('attSampling').value;
+  const rng = mulberry32(seed);
+  const results = $('attResults');
+  results.innerHTML = '';
+
+  const allTotals = [];
+
+  for (let i = 0; i < N; i++) {
+    const { letters, golden } = generateLetterSet(rng, mode);
+    const res = countWordsForSet(letters, golden);
+    allTotals.push(res.total);
+
+    const card = h('div', { className: 'attempt-card' });
+    const header = h('div', { className: 'attempt-header' });
+    header.appendChild(h('span', { className: 'attempt-num' }, '#' + (i + 1)));
+    header.appendChild(renderLetterTiles(letters, golden));
+    header.appendChild(h('span', { className: 'attempt-count' }, res.total + ' слов'));
+    card.appendChild(header);
+
+    if (res.total > 0) {
+      card.appendChild(renderByLenTable(res.byLen, 'Длина'));
+
+      const details = h('details');
+      details.appendChild(h('summary', null, `Показать все ${res.total} слов`));
+      const cloud = h('div', { className: 'word-cloud' });
+      for (const w of res.validWords.sort((a, b) => b.length - a.length || a.localeCompare(b))) {
+        cloud.appendChild(h('span', { className: 'word-tag' }, w));
+      }
+      details.appendChild(cloud);
+      card.appendChild(details);
+    }
+
+    results.appendChild(card);
+  }
+
+  if (N > 1) {
+    const title = h('div', { className: 'section-title' }, 'Сводная статистика');
+    results.appendChild(title);
+    const grid = h('div', { className: 'stat-grid' });
+    for (const [label, value] of [
+      ['Среднее', mean(allTotals).toFixed(1)],
+      ['Медиана', median(allTotals).toFixed(1)],
+      ['Мин', Math.min(...allTotals)],
+      ['Макс', Math.max(...allTotals)],
+    ]) {
+      const card = h('div', { className: 'stat-card' });
+      card.appendChild(h('div', { className: 'label' }, label));
+      card.appendChild(h('div', { className: 'value' }, String(value)));
+      grid.appendChild(card);
+    }
+    results.appendChild(grid);
+  }
+}
+
+$('attRun').addEventListener('click', runAttempts);
+
+// ─── Lookup ───
+function runLookup() {
+  const rawLetters = $('lookLetters').value.toLowerCase().replace(/[^а-яё]/g, '');
+  const golden = $('lookGolden').value.toLowerCase().replace(/[^а-яё]/g, '');
+
+  if (rawLetters.length === 0) { alert('Введите буквы набора'); return; }
+  if (!golden) { alert('Введите золотую букву'); return; }
+  if (!rawLetters.includes(golden)) { alert('Золотая буква должна быть в наборе'); return; }
+
+  const letters = [...rawLetters];
+  const res = countWordsForSet(letters, golden);
+  const results = $('lookResults');
+  results.innerHTML = '';
+
+  results.appendChild(renderLetterTiles(letters, golden));
+
+  const grid = h('div', { className: 'stat-grid' });
+  const card = h('div', { className: 'stat-card' });
+  card.appendChild(h('div', { className: 'label' }, 'Найдено слов'));
+  card.appendChild(h('div', { className: 'value' }, String(res.total)));
+  grid.appendChild(card);
+  results.appendChild(grid);
+
+  if (res.total > 0) {
+    results.appendChild(renderByLenTable(res.byLen, 'Длина'));
+
+    const title = h('div', { className: 'section-title' }, 'Слова по длинам');
+    results.appendChild(title);
+
+    const grouped = {};
+    for (const w of res.validWords) {
+      const len = w.length;
+      if (!grouped[len]) grouped[len] = [];
+      grouped[len].push(w);
+    }
+
+    for (const len of Object.keys(grouped).sort((a, b) => b - a)) {
+      const words = grouped[len].sort();
+      const det = h('details', len == Object.keys(grouped).sort((a, b) => b - a)[0] ? { open: '' } : {});
+      det.appendChild(h('summary', null, `Длина ${len} (${words.length} слов)`));
+      const cloud = h('div', { className: 'word-cloud' });
+      for (const w of words) cloud.appendChild(h('span', { className: 'word-tag' }, w));
+      det.appendChild(cloud);
+      results.appendChild(det);
+    }
+  }
+}
+
+$('lookRun').addEventListener('click', runLookup);
+
+// handle Enter key in lookup inputs
+$('lookLetters').addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
+$('lookGolden').addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
+
+// ─── Init: load dictionary ───
+async function init() {
+  try {
+    const resp = await fetch('nouns.json');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const nouns = await resp.json();
+    initIndex(nouns);
+    $('dictInfo').textContent = `Словарь: ${nouns.length.toLocaleString('ru-RU')} существительных (Harrix + OpenRussian)`;
+    $('loadingOverlay').style.display = 'none';
+  } catch (e) {
+    $('loadingOverlay').innerHTML =
+      `<div style="color:var(--red);text-align:center;padding:20px">
+        <p style="font-size:1.2rem;margin-bottom:8px">Не удалось загрузить словарь</p>
+        <p style="color:var(--text2)">Убедитесь, что файл <code>nouns.json</code> находится рядом с index.html<br>
+        и страница открыта через HTTP-сервер (не file://).</p>
+        <p style="color:var(--text2);margin-top:8px">Запустите: <code>npx serve .</code></p>
+        <p style="color:var(--red);margin-top:12px;font-size:0.8rem">${e.message}</p>
+      </div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
