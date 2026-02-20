@@ -80,7 +80,24 @@ export class WordIndex {
         return counts;
     }
 
-    // Проверить, можно ли составить слово из набора букв (битмаска)
+    // Получить все валидные слова для набора + золотая буква
+    getValidWords(letters, golden, minLen) {
+        const setMask = charMask(letters.join(''));
+        const goldenBit = 1 << LETTER_BIT[golden];
+        const invMask = ~setMask;
+        const result = [];
+
+        for (let i = 0, len = this.masks.length; i < len; i++) {
+            if (this.lengths[i] < minLen) continue;
+            if ((this.masks[i] & goldenBit) === 0) continue;
+            if ((this.masks[i] & invMask) !== 0) continue;
+            result.push(this.words[i]);
+        }
+
+        result.sort((a, b) => b.length - a.length || a.localeCompare(b));
+        return result;
+    }
+
     isWordFromSet(word, letters) {
         const setMask = charMask(letters.join(''));
         const wordMask = charMask(word);

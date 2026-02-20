@@ -91,6 +91,58 @@ export class WordBuilderRenderer {
         });
     }
 
+    renderAllValidWords(allWords, foundWords, coinsRewards) {
+        const container = document.getElementById('allWordsSpoiler');
+        if (!container) return;
+
+        container.innerHTML = '';
+        if (!allWords || allWords.length === 0) return;
+
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = `Все доступные слова (${allWords.length})`;
+        details.appendChild(summary);
+
+        const foundSet = new Set(foundWords);
+
+        // Группируем по длине
+        const byLen = {};
+        for (const w of allWords) {
+            const len = w.length;
+            if (!byLen[len]) byLen[len] = [];
+            byLen[len].push(w);
+        }
+
+        for (const len of Object.keys(byLen).sort((a, b) => b - a)) {
+            const words = byLen[len];
+            const coins = coinsRewards.getCoinsForWord(parseInt(len));
+
+            const group = document.createElement('div');
+            group.className = 'spoiler-group';
+
+            const title = document.createElement('div');
+            title.className = 'spoiler-group-title';
+            title.textContent = `${len} букв (${words.length} слов, +${coins} монет каждое)`;
+            group.appendChild(title);
+
+            const cloud = document.createElement('div');
+            cloud.className = 'spoiler-words';
+
+            for (const w of words) {
+                const tag = document.createElement('span');
+                tag.className = 'spoiler-word';
+                if (foundSet.has(w)) tag.classList.add('found');
+                tag.textContent = w.toUpperCase();
+                cloud.appendChild(tag);
+            }
+
+            group.appendChild(cloud);
+            details.appendChild(group);
+        }
+
+        container.appendChild(details);
+    }
+
     showMessage(text, type = 'success') {
         this.messageEl.textContent = text;
         this.messageEl.className = `message ${type}`;

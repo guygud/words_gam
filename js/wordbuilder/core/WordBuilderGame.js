@@ -10,6 +10,7 @@ export class WordBuilderGame {
         this.foundWords = new Set();
         this.coins = 0;
         this.totalValidWords = 0;
+        this.allValidWords = [];
 
         this.generateNewSet();
     }
@@ -88,6 +89,7 @@ export class WordBuilderGame {
                 Math.floor(Math.random() * this.currentLetters.length)
             ];
             this.totalValidWords = 0;
+            this.allValidWords = [];
             return;
         }
 
@@ -106,6 +108,9 @@ export class WordBuilderGame {
 
         this.goldenLetter = bestLetter;
         this.totalValidWords = bestCount;
+        this.allValidWords = this.wordIndex.getValidWords(
+            this.currentLetters, bestLetter, minLen
+        );
     }
 
     // Буквы можно использовать повторно — просто добавляем букву в слово
@@ -175,7 +180,8 @@ export class WordBuilderGame {
             currentWord: this.currentWord,
             foundWords: Array.from(this.foundWords),
             coins: this.coins,
-            totalValidWords: this.totalValidWords
+            totalValidWords: this.totalValidWords,
+            allValidWords: this.allValidWords
         };
     }
 }
