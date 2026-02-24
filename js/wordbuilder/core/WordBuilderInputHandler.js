@@ -110,7 +110,6 @@ export class WordBuilderInputHandler {
         this.renderer.renderLetters(state.letters, state.goldenLetter);
         this.renderer.renderCurrentWord(state.currentWord);
         this.renderer.renderCoins(state.coins);
-        this.renderer.renderWordCount(state.foundWords.length, state.totalValidWords);
         this.renderer.renderFoundWords(state.foundWords, WORD_BUILDER_CONFIG);
         this.renderer.renderAllValidWords(state.allValidWords, state.foundWords, WORD_BUILDER_CONFIG);
     }

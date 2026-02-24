@@ -7,7 +7,6 @@ export class WordBuilderRenderer {
         this.messageEl = document.getElementById('message');
         this.submitBtn = document.getElementById('submitBtn');
         this.clearBtn = document.getElementById('clearBtn');
-        this.wordCountEl = document.getElementById('wordCount');
     }
 
     renderLetters(letters, goldenLetter) {
@@ -71,12 +70,6 @@ export class WordBuilderRenderer {
 
     renderCoins(coins) {
         this.coinsDisplay.textContent = coins.toLocaleString('ru-RU');
-    }
-
-    renderWordCount(found, total) {
-        if (this.wordCountEl) {
-            this.wordCountEl.textContent = `${found} / ${total}`;
-        }
     }
 
     renderFoundWords(foundWords, coinsRewards) {
