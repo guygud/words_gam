@@ -20,6 +20,8 @@ export class WordBuilderGame {
         const frequencies = Object.values(WORD_BUILDER_CONFIG.LETTER_FREQUENCIES);
         const minLen = WORD_BUILDER_CONFIG.MIN_WORD_LENGTH;
         const minFreq = WORD_BUILDER_CONFIG.MIN_FREQUENT_WORDS;
+        const minLong = WORD_BUILDER_CONFIG.MIN_FREQUENT_LONG;
+        const longLen = WORD_BUILDER_CONFIG.MIN_LONG_WORD_LENGTH;
 
         let bestCandidate = null;
         let bestScore = -Infinity;
@@ -41,13 +43,15 @@ export class WordBuilderGame {
             }
 
             const golden = this._bestGoldenFor(candidate, minLen);
-            const freqCount = this.wordIndex.countFrequentForSet(candidate, golden, minLen);
-            if (freqCount >= minFreq) {
+            const { total: freqCount, longCount } = this.wordIndex.countFrequentForSet(
+                candidate, golden, minLen, longLen
+            );
+            if (freqCount >= minFreq && longCount >= minLong) {
                 this.currentLetters = candidate;
                 break;
             }
 
-            const score = freqCount;
+            const score = freqCount + longCount * 10;
             if (score > bestScore) { bestCandidate = candidate; bestScore = score; }
 
             if (attempt === WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS - 1) {

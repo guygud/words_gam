@@ -83,11 +83,11 @@ export class WordIndex {
         return counts;
     }
 
-    countFrequentForSet(letters, golden, minLen) {
+    countFrequentForSet(letters, golden, minLen, longMinLen = 0) {
         const setMask = charMask(letters.join(''));
         const goldenBit = 1 << LETTER_BIT[golden];
         const invMask = ~setMask;
-        let total = 0;
+        let total = 0, longCount = 0;
 
         for (let i = 0, len = this.masks.length; i < len; i++) {
             if (!this.isFreq[i]) continue;
@@ -95,8 +95,9 @@ export class WordIndex {
             if ((this.masks[i] & goldenBit) === 0) continue;
             if ((this.masks[i] & invMask) !== 0) continue;
             total++;
+            if (longMinLen > 0 && this.lengths[i] >= longMinLen) longCount++;
         }
-        return total;
+        return { total, longCount };
     }
 
     getValidWords(letters, golden, minLen) {
