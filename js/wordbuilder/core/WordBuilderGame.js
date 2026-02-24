@@ -42,8 +42,9 @@ export class WordBuilderGame {
                 continue;
             }
 
-            const { total: freqCount, longCount } = this.wordIndex.countFrequentForSetAll(
-                candidate, minLen, longLen
+            const golden = this._bestGoldenFor(candidate, minLen);
+            const { total: freqCount, longCount } = this.wordIndex.countFrequentForSet(
+                candidate, golden, minLen, longLen
             );
             if (freqCount >= minFreq && longCount >= minLong) {
                 this.currentLetters = candidate;
