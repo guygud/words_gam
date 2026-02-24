@@ -19,32 +19,36 @@ export class WordBuilderGame {
         const letters = Object.keys(WORD_BUILDER_CONFIG.LETTER_FREQUENCIES);
         const frequencies = Object.values(WORD_BUILDER_CONFIG.LETTER_FREQUENCIES);
         const minLen = WORD_BUILDER_CONFIG.MIN_WORD_LENGTH;
+        const minFreq = WORD_BUILDER_CONFIG.MIN_FREQUENT_WORDS;
 
         let bestCandidate = null;
-        let bestCount = 0;
+        let bestScore = -Infinity;
 
         for (let attempt = 0; attempt < WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS; attempt++) {
             const candidate = this._sampleLetters(letters, frequencies);
 
             if (!this.wordIndex) {
-                // Без индекса — просто берём первый набор
                 this.currentLetters = candidate;
                 break;
             }
 
             const count = this.wordIndex.countForSet(candidate, minLen);
+            if (count < WORD_BUILDER_CONFIG.MIN_VALID_WORDS ||
+                count > WORD_BUILDER_CONFIG.MAX_VALID_WORDS) {
+                const score = -Math.abs(count - 20);
+                if (score > bestScore) { bestCandidate = candidate; bestScore = score; }
+                continue;
+            }
 
-            if (count >= WORD_BUILDER_CONFIG.MIN_VALID_WORDS &&
-                count <= WORD_BUILDER_CONFIG.MAX_VALID_WORDS) {
+            const golden = this._bestGoldenFor(candidate, minLen);
+            const freqCount = this.wordIndex.countFrequentForSet(candidate, golden, minLen);
+            if (freqCount >= minFreq) {
                 this.currentLetters = candidate;
                 break;
             }
 
-            // Запоминаем лучшего кандидата на случай, если лимит попыток исчерпан
-            if (bestCandidate === null || Math.abs(count - 20) < Math.abs(bestCount - 20)) {
-                bestCandidate = candidate;
-                bestCount = count;
-            }
+            const score = freqCount;
+            if (score > bestScore) { bestCandidate = candidate; bestScore = score; }
 
             if (attempt === WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS - 1) {
                 this.currentLetters = bestCandidate;
@@ -55,6 +59,15 @@ export class WordBuilderGame {
 
         this.currentWord = [];
         this.foundWords = new Set();
+    }
+
+    _bestGoldenFor(letters, minLen) {
+        const counts = this.wordIndex.countPerGolden(letters, minLen);
+        let best = letters[0], bestCount = 0;
+        for (const [letter, count] of counts) {
+            if (count > bestCount) { bestCount = count; best = letter; }
+        }
+        return best;
     }
 
     _sampleLetters(letters, frequencies) {
@@ -94,23 +107,13 @@ export class WordBuilderGame {
         }
 
         const minLen = WORD_BUILDER_CONFIG.MIN_WORD_LENGTH;
-        const counts = this.wordIndex.countPerGolden(this.currentLetters, minLen);
+        this.goldenLetter = this._bestGoldenFor(this.currentLetters, minLen);
 
-        let bestLetter = this.currentLetters[0];
-        let bestCount = 0;
-
-        for (const [letter, count] of counts) {
-            if (count > bestCount) {
-                bestCount = count;
-                bestLetter = letter;
-            }
-        }
-
-        this.goldenLetter = bestLetter;
-        this.totalValidWords = bestCount;
-        this.allValidWords = this.wordIndex.getValidWords(
-            this.currentLetters, bestLetter, minLen
+        const entries = this.wordIndex.getValidWords(
+            this.currentLetters, this.goldenLetter, minLen
         );
+        this.totalValidWords = entries.length;
+        this.allValidWords = entries;
     }
 
     // Буквы можно использовать повторно — просто добавляем букву в слово

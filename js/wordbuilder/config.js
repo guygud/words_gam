@@ -5,6 +5,7 @@ export const WORD_BUILDER_CONFIG = {
     // Rejection sampling
     MIN_VALID_WORDS: 10,
     MAX_VALID_WORDS: 50,
+    MIN_FREQUENT_WORDS: 6,
     MAX_GENERATION_ATTEMPTS: 50,
 
     COINS_REWARDS: {

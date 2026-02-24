@@ -121,41 +121,43 @@ export class WordBuilderRenderer {
         container.innerHTML = '';
         if (!allWords || allWords.length === 0) return;
 
+        const freqCount = allWords.filter(e => e.freq).length;
         const details = document.createElement('details');
         const summary = document.createElement('summary');
-        summary.textContent = `Все доступные слова (${allWords.length})`;
+        summary.textContent = `Все доступные слова (${allWords.length}, частотных: ${freqCount})`;
         details.appendChild(summary);
 
         const foundSet = new Set(foundWords);
 
-        // Группируем по длине
         const byLen = {};
-        for (const w of allWords) {
-            const len = w.length;
+        for (const entry of allWords) {
+            const len = entry.word.length;
             if (!byLen[len]) byLen[len] = [];
-            byLen[len].push(w);
+            byLen[len].push(entry);
         }
 
         for (const len of Object.keys(byLen).sort((a, b) => b - a)) {
-            const words = byLen[len];
+            const entries = byLen[len];
             const coins = coinsRewards.getCoinsForWord(parseInt(len));
+            const fCount = entries.filter(e => e.freq).length;
 
             const group = document.createElement('div');
             group.className = 'spoiler-group';
 
             const title = document.createElement('div');
             title.className = 'spoiler-group-title';
-            title.textContent = `${len} букв (${words.length} слов, +${coins} монет каждое)`;
+            title.textContent = `${len} букв (${entries.length} слов, частотных: ${fCount}, +${coins} монет)`;
             group.appendChild(title);
 
             const cloud = document.createElement('div');
             cloud.className = 'spoiler-words';
 
-            for (const w of words) {
+            for (const entry of entries) {
                 const tag = document.createElement('span');
                 tag.className = 'spoiler-word';
-                if (foundSet.has(w)) tag.classList.add('found');
-                tag.textContent = w.toUpperCase();
+                if (foundSet.has(entry.word)) tag.classList.add('found');
+                if (!entry.freq) tag.classList.add('rare');
+                tag.textContent = entry.word.toUpperCase();
                 cloud.appendChild(tag);
             }
 

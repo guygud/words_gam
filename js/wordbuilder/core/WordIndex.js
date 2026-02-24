@@ -15,14 +15,17 @@ function charMask(str) {
 }
 
 export class WordIndex {
-    constructor(words) {
+    constructor(words, freqSet = null) {
         this.words = words;
+        this.freqSet = freqSet;
         this.masks = new Int32Array(words.length);
         this.lengths = new Uint8Array(words.length);
+        this.isFreq = new Uint8Array(words.length);
 
         for (let i = 0; i < words.length; i++) {
             this.masks[i] = charMask(words[i]);
             this.lengths[i] = Math.min(words[i].length, 21);
+            this.isFreq[i] = freqSet && freqSet.has(words[i]) ? 1 : 0;
         }
     }
 
@@ -80,7 +83,22 @@ export class WordIndex {
         return counts;
     }
 
-    // Получить все валидные слова для набора + золотая буква
+    countFrequentForSet(letters, golden, minLen) {
+        const setMask = charMask(letters.join(''));
+        const goldenBit = 1 << LETTER_BIT[golden];
+        const invMask = ~setMask;
+        let total = 0;
+
+        for (let i = 0, len = this.masks.length; i < len; i++) {
+            if (!this.isFreq[i]) continue;
+            if (this.lengths[i] < minLen) continue;
+            if ((this.masks[i] & goldenBit) === 0) continue;
+            if ((this.masks[i] & invMask) !== 0) continue;
+            total++;
+        }
+        return total;
+    }
+
     getValidWords(letters, golden, minLen) {
         const setMask = charMask(letters.join(''));
         const goldenBit = 1 << LETTER_BIT[golden];
@@ -91,10 +109,10 @@ export class WordIndex {
             if (this.lengths[i] < minLen) continue;
             if ((this.masks[i] & goldenBit) === 0) continue;
             if ((this.masks[i] & invMask) !== 0) continue;
-            result.push(this.words[i]);
+            result.push({ word: this.words[i], freq: !!this.isFreq[i] });
         }
 
-        result.sort((a, b) => b.length - a.length || a.localeCompare(b));
+        result.sort((a, b) => b.word.length - a.word.length || a.word.localeCompare(b.word));
         return result;
     }
 

@@ -10,23 +10,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     let wordIndex = null;
 
     try {
-        const response = await fetch('nouns.json');
-        if (response.ok) {
-            const nouns = await response.json();
+        const [nounsResp, freqResp] = await Promise.all([
+            fetch('nouns.json'),
+            fetch('freq5000.json')
+        ]);
+
+        let freqSet = null;
+        if (freqResp.ok) {
+            const freqWords = await freqResp.json();
+            freqSet = new Set(freqWords.map(w => w.toLowerCase()));
+            console.log(`Частотный список: ${freqSet.size} слов`);
+        }
+
+        if (nounsResp.ok) {
+            const nouns = await nounsResp.json();
             const filtered = nouns.filter(w => w && w.length >= WORD_BUILDER_CONFIG.MIN_WORD_LENGTH);
             filtered.forEach(word => dictionaryService.addWord(word));
-            wordIndex = new WordIndex(filtered.map(w => w.toLowerCase()));
-            console.log(`Словарь: ${filtered.length} слов, индекс построен`);
+            wordIndex = new WordIndex(filtered.map(w => w.toLowerCase()), freqSet);
+            const freqCount = freqSet ? filtered.filter(w => freqSet.has(w.toLowerCase())).length : 0;
+            console.log(`Словарь: ${filtered.length} слов, из них частотных: ${freqCount}`);
         }
     } catch (error) {
-        console.warn('Не удалось загрузить nouns.json:', error);
+        console.warn('Не удалось загрузить словари:', error);
     }
 
     const renderer = new WordBuilderRenderer();
     const game = new WordBuilderGame(dictionaryService, wordIndex);
     const inputHandler = new WordBuilderInputHandler(game, renderer);
 
-    // Первоначальная отрисовка
     inputHandler.updateDisplay();
 
     console.log('Словостроитель запущен!');
