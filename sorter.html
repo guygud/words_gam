@@ -66,7 +66,7 @@
 
     const GAME_DURATION = 60;
     const MAX_LIVES = 3;
-    const SILHOUETTE_REVEAL = 0.4;
+    const SILHOUETTE_REVEAL = 0.7;
     const FALL_TIME_START = 2.5;
     const FALL_TIME_END = 1.0;
     const SPAWN_DELAY_START = 1.2;
@@ -323,12 +323,6 @@
         drawEmoji(item.emoji, drawX, drawY, emojiSize, revealPct);
         ctx.globalAlpha = 1;
 
-        if (revealPct >= 1 && flyDir === 0) {
-            ctx.font = `bold ${Math.round(W * 0.035)}px sans-serif`;
-            ctx.textAlign = 'center';
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            ctx.fillText(item.name, drawX, drawY + emojiSize * 0.6);
-        }
     }
 
     function drawMenu() {
