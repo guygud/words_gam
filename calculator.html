@@ -366,9 +366,9 @@ const ENERGY_LEVELS = [
 ];
 
 const GAMES = [
-  { key: 'gA', name: 'Игра A', energyCost: 4, reward: 20, rubPrice: 0 },
-  { key: 'gB', name: 'Игра B', energyCost: 8, reward: 50, rubPrice: 0 },
-  { key: 'gC', name: 'Слова (C)', energyCost: 1, reward: 6, rubPrice: 0 },
+  { key: 'gA', name: 'Игра A', energyCost: 4, reward: 10, rubPrice: 0 },
+  { key: 'gB', name: 'Игра B', energyCost: 8, reward: 20, rubPrice: 0 },
+  { key: 'gC', name: 'Слова (C)', energyCost: 1, reward: 5, rubPrice: 0 },
 ];
 
 const ANCHOR_TYPES = [
@@ -386,14 +386,14 @@ const PLAYERS = [
   },
   {
     key: 'p1', name: 'Обычный + Подписка',
-    daysPerWeek: 4, sessionsPerDay: 1.5, startDay: 0,
+    daysPerWeek: 4, sessionsPerDay: 2, startDay: 0,
     anchorsPerWeek: [{ type: 0, count: 1.5 }],
-    games: [0, 1, 2], subscription: true,
+    games: [0, 2], subscription: true,
   },
   {
     key: 'p2', name: 'Фродер',
-    daysPerWeek: 7, sessionsPerDay: 4, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 1 }],
+    daysPerWeek: 7, sessionsPerDay: 3, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 0.5 }],
     games: [0, 1, 2], subscription: false,
   },
   {
