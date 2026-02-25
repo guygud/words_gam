@@ -284,7 +284,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
   <section>
     <h2 class="open" onclick="toggleSection(this)">Симуляция</h2>
     <div class="collapsible-content open">
-      <div class="params-grid cols-4">
+      <div class="params-grid cols-3">
         <div class="field">
           <label>Всего дней активации</label>
           <input type="number" data-key="actDays" value="90" min="1" step="1">
@@ -292,10 +292,6 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
         <div class="field">
           <label>Прогонов (Монте-Карло)</label>
           <input type="number" data-key="numRuns" value="1000" min="100" max="10000" step="100">
-        </div>
-        <div class="field">
-          <label>Цена подписки (₽/мес)</label>
-          <input type="number" data-key="subRub" value="99" min="0" step="1">
         </div>
         <div>
           <button class="btn primary" onclick="runSimulation()" style="margin-top:16px">Пересчитать</button>
@@ -331,11 +327,11 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
     </div>
   </section>
 
-  <!-- Global: Anchors -->
+  <!-- Global: Anchors & Subscription -->
   <section>
-    <h2 onclick="toggleSection(this)">Якоря (энергия + монеты за выполнение)</h2>
+    <h2 onclick="toggleSection(this)">Якоря и подписка</h2>
     <div class="collapsible-content">
-      <div class="params-grid cols-3" id="anchorParams"></div>
+      <div class="params-grid cols-4" id="anchorParams"></div>
     </div>
   </section>
 
@@ -416,7 +412,7 @@ function buildDefaultState() {
   const s = {};
   s.actDays = 90;
   s.numRuns = 1000;
-  s.subRub = 99;
+  s.subRub = 100;
   ZONES.forEach(z => s[z.key] = z.cost);
   ENERGY_LEVELS.forEach(e => { s[e.key + '_cap'] = e.cap; s[e.key + '_rph'] = e.regenPerHour; });
   GAMES.forEach(g => { s[g.key + '_cost'] = g.energyCost; s[g.key + '_reward'] = g.reward; s[g.key + '_rub'] = g.rubPrice; });
@@ -492,7 +488,7 @@ function simulatePlayer(pKey) {
   const sess = state[pKey + '_sess'];
   const startDay = state[pKey + '_start'];
   const hasSub = state[pKey + '_sub'];
-  const subCost = hasSub ? (state.subRub || 99) * Math.ceil((actDays - startDay) / 30) : 0;
+  const subCost = hasSub ? (state.subRub || 100) * Math.ceil((actDays - startDay) / 30) : 0;
   const availableDays = Math.max(0, actDays - startDay);
 
   const anchors = ANCHOR_TYPES.map(a => ({
@@ -515,11 +511,10 @@ function simulatePlayer(pKey) {
   const allZoneDays = [];
   const allRubles = [];
   const allCoinsLeft = [];
-  const allTotalCoinsEarned = [];
   const coinMult = hasSub ? 2 : 1;
 
   for (let run = 0; run < numRuns; run++) {
-    let energy = 0, coins = 0, rubles = hasSub ? subCost : 0, totalCoinsEarned = 0, currentZone = 0;
+    let energy = 0, coins = 0, rubles = hasSub ? subCost : 0, currentZone = 0;
     const zoneDays = [];
 
     for (let day = 0; day < actDays; day++) {
@@ -547,7 +542,6 @@ function simulatePlayer(pKey) {
         const sp = spendEnergy(e, selectedGames);
         const c = sp.coins * coinMult;
         coins += c;
-        totalCoinsEarned += c;
         rubles += sp.rub;
       }
 
@@ -559,7 +553,6 @@ function simulatePlayer(pKey) {
           const sp = spendEnergy(e, selectedGames);
           const c = (sp.coins + a.coins) * coinMult;
           coins += c;
-          totalCoinsEarned += c;
           rubles += sp.rub;
         }
       }
@@ -577,10 +570,9 @@ function simulatePlayer(pKey) {
     allZoneDays.push(zoneDays);
     allRubles.push(rubles);
     allCoinsLeft.push(coins);
-    allTotalCoinsEarned.push(totalCoinsEarned);
   }
 
-  return aggregate(allZoneDays, allRubles, allCoinsLeft, allTotalCoinsEarned, numZones, availableDays, hasSub, subCost);
+  return aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub, subCost);
 }
 
 function pct(arr, p) {
@@ -597,7 +589,7 @@ function pctAll(arr, p) {
   return s[i];
 }
 
-function aggregate(allZoneDays, allRubles, allCoinsLeft, allTotalCoinsEarned, numZones, availableDays, hasSub, subCost) {
+function aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub, subCost) {
   const zones = [];
   for (let z = 0; z < numZones; z++) {
     const days = allZoneDays.map(r => r[z]);
@@ -615,9 +607,6 @@ function aggregate(allZoneDays, allRubles, allCoinsLeft, allTotalCoinsEarned, nu
   }
 
   const totals = allZoneDays.map(r => r[numZones - 1]);
-  const totalCoinsMedian = allTotalCoinsEarned ? pctAll(allTotalCoinsEarned, 50) : 0;
-  const extraCoinsFromSub = hasSub && allTotalCoinsEarned ? totalCoinsMedian / 2 : 0;
-  const subProfitability = hasSub && subCost > 0 ? (extraCoinsFromSub / subCost).toFixed(1) : null;
 
   return {
     zones,
@@ -632,10 +621,7 @@ function aggregate(allZoneDays, allRubles, allCoinsLeft, allTotalCoinsEarned, nu
     coinsLeftMedian: pctAll(allCoinsLeft, 50),
     coinsLeftP10: pctAll(allCoinsLeft, 10),
     coinsLeftP90: pctAll(allCoinsLeft, 90),
-    totalCoinsMedian,
-    extraCoinsFromSub,
     subCost,
-    subProfitability,
   };
 }
 
@@ -706,7 +692,7 @@ function renderGameParams() {
 
 function renderAnchorParams() {
   const el = document.getElementById('anchorParams');
-  el.innerHTML = ANCHOR_TYPES.map(a =>
+  const anchorsHTML = ANCHOR_TYPES.map(a =>
     `<div style="display:flex;flex-direction:column;gap:4px">
       <span style="font-size:0.8rem;color:var(--text2)">${a.name}</span>
       <div class="field">
@@ -718,11 +704,19 @@ function renderAnchorParams() {
         <input type="number" data-key="${a.key}_coins" value="${state[a.key + '_coins']}" min="0" step="1">
       </div>
       <div class="field">
-        <label>Стоимость (₽)</label>
+        <label>Доход (₽)</label>
         <input type="number" data-key="${a.key}_rub" value="${state[a.key + '_rub']}" min="0" step="1">
       </div>
     </div>`
   ).join('');
+  const subHTML = `<div style="display:flex;flex-direction:column;gap:4px">
+    <span style="font-size:0.8rem;color:var(--text2)">Подписка</span>
+    <div class="field">
+      <label>Доход (₽/мес)</label>
+      <input type="number" data-key="subRub" value="${state.subRub}" min="0" step="1">
+    </div>
+  </div>`;
+  el.innerHTML = anchorsHTML + subHTML;
 }
 
 function renderPlayers() {
@@ -799,7 +793,7 @@ function renderResults() {
     if (!sim) return;
 
     const tbody = document.querySelector(`#table_${p.key} tbody`);
-    const { zones, availableDays, totalP10, totalMedian, totalP90, totalCompletionRate, rubMedian, rubP10, rubP90, coinsLeftMedian, coinsLeftP10, coinsLeftP90, subProfitability, extraCoinsFromSub, subCost } = sim;
+    const { zones, availableDays, totalP10, totalMedian, totalP90, totalCompletionRate, rubMedian, rubP10, rubP90, coinsLeftMedian, coinsLeftP10, coinsLeftP90, subCost } = sim;
 
     const zonesCompleted = zones.filter(z => z.fitsInTime).length;
     const progressPct = Math.min(100, (zonesCompleted / zones.length) * 100);
@@ -847,8 +841,8 @@ function renderResults() {
       : `<span style="font-size:0.7rem;color:var(--red)">${zonesCompleted}/${zones.length} зон (${pctDone}%)</span>`;
     const rangeLabel = `<span style="font-size:0.65rem;color:var(--text2)">${fmtD(totalP10)}–${fmtD(totalP90)} дн</span>`;
     const rubLabel = `<span style="font-size:0.7rem;color:var(--green)">${fmtR(rubMedian)}₽</span> <span style="font-size:0.6rem;color:var(--text2)">(${fmtR(rubP10)}–${fmtR(rubP90)})</span>`;
-    const subLabel = state[p.key + '_sub'] && subProfitability != null
-      ? `<br><span style="font-size:0.65rem;color:var(--accent)">Подписка: ${subCost}₽ | +${fmtR(extraCoinsFromSub)} монет | ${subProfitability} м/₽</span>`
+    const subLabel = state[p.key + '_sub'] && subCost > 0
+      ? `<br><span style="font-size:0.65rem;color:var(--accent)">Подписка: +${fmtR(subCost)}₽</span>`
       : '';
 
     summaryCards.push(`<div class="summary-card">
