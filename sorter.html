@@ -66,7 +66,8 @@
 
     const GAME_DURATION = 60;
     const MAX_LIVES = 3;
-    const SILHOUETTE_REVEAL = 0.7;
+    const REVEAL_START = 0.4;
+    const REVEAL_END = 0.95;
     const FALL_TIME_START = 2.5;
     const FALL_TIME_END = 1.0;
     const SPAWN_DELAY_START = 1.2;
@@ -315,8 +316,8 @@
         let drawX = cx + flyX;
         let drawY = itemY * H;
 
-        const revealThreshold = SILHOUETTE_REVEAL;
-        const revealPct = itemY < 0 ? 0 : Math.min(1, itemY / revealThreshold);
+        const revealPct = itemY <= REVEAL_START ? 0
+            : Math.min(1, (itemY - REVEAL_START) / (REVEAL_END - REVEAL_START));
 
         const alpha = flyDir !== 0 ? flyAlpha : 1;
         ctx.globalAlpha = alpha;
