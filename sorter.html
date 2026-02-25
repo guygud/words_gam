@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Сортировщик</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+        .back-link {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            color: rgba(255,255,255,0.6);
+            text-decoration: none;
+            font-size: 14px;
+            z-index: 10;
+        }
+        .back-link:hover { color: #fff; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← К играм</a>
+    <canvas id="game"></canvas>
+
+    <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const FURNITURE = [
+        { emoji: '🪑', name: 'Стул' },
+        { emoji: '🛋️', name: 'Диван' },
+        { emoji: '🛏️', name: 'Кровать' },
+        { emoji: '🪞', name: 'Зеркало' },
+        { emoji: '🗄️', name: 'Шкаф' },
+        { emoji: '🚪', name: 'Дверь' },
+        { emoji: '🗃️', name: 'Тумба' },
+        { emoji: '🪜', name: 'Лестница' },
+    ];
+
+    const DECOR = [
+        { emoji: '🖼️', name: 'Картина' },
+        { emoji: '🪴', name: 'Растение' },
+        { emoji: '🕯️', name: 'Свеча' },
+        { emoji: '🏺', name: 'Ваза' },
+        { emoji: '🧸', name: 'Игрушка' },
+        { emoji: '⏰', name: 'Часы' },
+        { emoji: '💡', name: 'Лампа' },
+        { emoji: '🪆', name: 'Матрёшка' },
+        { emoji: '🎨', name: 'Палитра' },
+    ];
+
+    const GAME_DURATION = 90;
+    const MAX_LIVES = 3;
+    const SILHOUETTE_REVEAL = 0.4;
+    const FALL_TIME_START = 3.0;
+    const FALL_TIME_END = 1.2;
+    const SPAWN_DELAY_START = 2.0;
+    const SPAWN_DELAY_END = 0.8;
+
+    let W, H;
+
+    function resize() {
+        const maxW = Math.min(window.innerWidth - 20, 420);
+        const maxH = Math.min(window.innerHeight - 20, 720);
+        const ratio = 420 / 720;
+        if (maxW / maxH > ratio) {
+            H = maxH; W = Math.round(H * ratio);
+        } else {
+            W = maxW; H = Math.round(W / ratio);
+        }
+        canvas.width = W;
+        canvas.height = H;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const STATE = { MENU: 0, PLAYING: 1, OVER: 2 };
+
+    let state, score, lives, timeLeft, item, itemY, itemVY, flyDir, flyX, flyAlpha;
+    let spawnTimer, lastTime, combo, flashSide, flashTimer;
+    let shakeX, shakeTimer;
+
+    function progress() { return 1 - timeLeft / GAME_DURATION; }
+    function lerp(a, b, t) { return a + (b - a) * Math.min(1, Math.max(0, t)); }
+
+    function fallTime() { return lerp(FALL_TIME_START, FALL_TIME_END, progress()); }
+    function spawnDelay() { return lerp(SPAWN_DELAY_START, SPAWN_DELAY_END, progress()); }
+
+    function pickItem() {
+        const pool = Math.random() < 0.5 ? FURNITURE : DECOR;
+        const cat = pool === FURNITURE ? 'left' : 'right';
+        const obj = pool[Math.floor(Math.random() * pool.length)];
+        return { emoji: obj.emoji, name: obj.name, category: cat };
+    }
+
+    function spawnItem() {
+        item = pickItem();
+        itemY = -0.05;
+        itemVY = 1.0 / fallTime();
+        flyDir = 0;
+        flyX = 0;
+        flyAlpha = 1;
+    }
+
+    function startGame() {
+        state = STATE.PLAYING;
+        score = 0;
+        lives = MAX_LIVES;
+        timeLeft = GAME_DURATION;
+        combo = 0;
+        spawnTimer = 0.5;
+        item = null;
+        flyDir = 0;
+        flashSide = 0;
+        flashTimer = 0;
+        shakeX = 0;
+        shakeTimer = 0;
+        lastTime = performance.now();
+    }
+
+    function choose(dir) {
+        if (state !== STATE.PLAYING || !item || flyDir !== 0) return;
+        const correct = (dir === -1 && item.category === 'left') ||
+                        (dir === 1 && item.category === 'right');
+        if (correct) {
+            score++;
+            combo++;
+            flashSide = dir;
+            flashTimer = 0.3;
+        } else {
+            lives--;
+            combo = 0;
+            shakeTimer = 0.3;
+            if (lives <= 0) { state = STATE.OVER; return; }
+        }
+        flyDir = dir;
+    }
+
+    // --- Input ---
+    document.addEventListener('keydown', e => {
+        if (state === STATE.MENU && (e.key === 'Enter' || e.key === ' ')) { startGame(); return; }
+        if (state === STATE.OVER && (e.key === 'Enter' || e.key === ' ')) { state = STATE.MENU; return; }
+        if (e.key === 'ArrowLeft') choose(-1);
+        if (e.key === 'ArrowRight') choose(1);
+    });
+
+    let touchStartX = 0, touchStartY = 0;
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        if (state === STATE.MENU) { startGame(); return; }
+        if (state === STATE.OVER) { state = STATE.MENU; return; }
+        const t = e.touches[0];
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
+    }, { passive: false });
+    canvas.addEventListener('touchend', e => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        const dx = t.clientX - touchStartX;
+        if (Math.abs(dx) > 30) choose(dx < 0 ? -1 : 1);
+    }, { passive: false });
+
+    canvas.addEventListener('click', e => {
+        if (state === STATE.MENU) { startGame(); return; }
+        if (state === STATE.OVER) { state = STATE.MENU; return; }
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        if (x < rect.width / 2) choose(-1);
+        else choose(1);
+    });
+
+    // --- Render helpers ---
+    function drawRoundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    function drawEmoji(emoji, x, y, size, revealPct) {
+        ctx.save();
+        ctx.font = `${size}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        if (revealPct < 1) {
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.arc(x, y, size * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.globalAlpha = revealPct;
+        }
+        ctx.fillText(emoji, x, y);
+        ctx.restore();
+    }
+
+    function drawBackground() {
+        ctx.fillStyle = '#16213e';
+        ctx.fillRect(0, 0, W, H);
+
+        const zoneH = H * 0.75;
+        const zoneY = H * 0.12;
+        const zoneW = W * 0.42;
+
+        // Left zone
+        let leftAlpha = 0.08;
+        if (flashSide === -1 && flashTimer > 0) leftAlpha = 0.25;
+        ctx.fillStyle = `rgba(76, 175, 80, ${leftAlpha})`;
+        drawRoundRect(6, zoneY, zoneW, zoneH, 12);
+        ctx.fill();
+
+        // Right zone
+        let rightAlpha = 0.08;
+        if (flashSide === 1 && flashTimer > 0) rightAlpha = 0.25;
+        ctx.fillStyle = `rgba(33, 150, 243, ${rightAlpha})`;
+        drawRoundRect(W - zoneW - 6, zoneY, zoneW, zoneH, 12);
+        ctx.fill();
+
+        // Zone labels
+        ctx.font = `bold ${Math.round(W * 0.035)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(76, 175, 80, 0.5)';
+        ctx.fillText('◀ МЕБЕЛЬ', zoneW / 2 + 6, H - 18);
+        ctx.fillStyle = 'rgba(33, 150, 243, 0.5)';
+        ctx.fillText('ИНТЕРЬЕР ▶', W - zoneW / 2 - 6, H - 18);
+
+        // Divider
+        ctx.setLineDash([4, 8]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(W / 2, zoneY);
+        ctx.lineTo(W / 2, zoneY + zoneH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function drawUI() {
+        const pad = 14;
+        const topY = 10;
+
+        // Score
+        ctx.font = `bold ${Math.round(W * 0.055)}px sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`${score}`, pad, topY + 28);
+
+        if (combo > 1) {
+            ctx.font = `bold ${Math.round(W * 0.03)}px sans-serif`;
+            ctx.fillStyle = '#ffd740';
+            ctx.fillText(`x${combo}`, pad + 50, topY + 28);
+        }
+
+        // Timer
+        const secs = Math.ceil(timeLeft);
+        const min = Math.floor(secs / 60);
+        const sec = secs % 60;
+        ctx.font = `bold ${Math.round(W * 0.05)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = timeLeft < 10 ? '#ef5350' : '#fff';
+        ctx.fillText(`${min}:${sec.toString().padStart(2, '0')}`, W / 2, topY + 28);
+
+        // Lives
+        ctx.font = `${Math.round(W * 0.055)}px serif`;
+        ctx.textAlign = 'right';
+        let heartsStr = '';
+        for (let i = 0; i < MAX_LIVES; i++) heartsStr += i < lives ? '❤️' : '🖤';
+        ctx.fillText(heartsStr, W - pad, topY + 28);
+
+        // Progress bar
+        const barY = topY + 38;
+        const barW = W - pad * 2;
+        const barH = 4;
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        drawRoundRect(pad, barY, barW, barH, 2);
+        ctx.fill();
+        const pct = 1 - timeLeft / GAME_DURATION;
+        const grad = ctx.createLinearGradient(pad, 0, pad + barW * pct, 0);
+        grad.addColorStop(0, '#667eea');
+        grad.addColorStop(1, '#764ba2');
+        ctx.fillStyle = grad;
+        drawRoundRect(pad, barY, barW * pct, barH, 2);
+        ctx.fill();
+    }
+
+    function drawItem(dt) {
+        if (!item) return;
+
+        const cx = W / 2;
+        const emojiSize = Math.round(W * 0.15);
+        let drawX = cx + flyX;
+        let drawY = itemY * H;
+
+        const revealThreshold = SILHOUETTE_REVEAL;
+        const revealPct = itemY < 0 ? 0 : Math.min(1, itemY / revealThreshold);
+
+        const alpha = flyDir !== 0 ? flyAlpha : 1;
+        ctx.globalAlpha = alpha;
+        drawEmoji(item.emoji, drawX, drawY, emojiSize, revealPct);
+        ctx.globalAlpha = 1;
+
+        if (revealPct >= 1 && flyDir === 0) {
+            ctx.font = `bold ${Math.round(W * 0.035)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.fillText(item.name, drawX, drawY + emojiSize * 0.6);
+        }
+    }
+
+    function drawMenu() {
+        ctx.fillStyle = '#16213e';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.font = `${Math.round(W * 0.15)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('🪑🖼️', W / 2, H * 0.25);
+
+        ctx.font = `bold ${Math.round(W * 0.08)}px sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Сортировщик', W / 2, H * 0.38);
+
+        ctx.font = `${Math.round(W * 0.038)}px sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        const lines = [
+            'Предметы падают сверху.',
+            'Отправляй мебель ← влево,',
+            'а интерьер → вправо!',
+            '',
+            '⌨️ Стрелки или свайп',
+            '🖱️ Клик по половине экрана',
+        ];
+        lines.forEach((line, i) => {
+            ctx.fillText(line, W / 2, H * 0.48 + i * Math.round(W * 0.055));
+        });
+
+        // Start button
+        const btnW = W * 0.5;
+        const btnH = H * 0.07;
+        const btnX = (W - btnW) / 2;
+        const btnY = H * 0.82;
+        const grad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+        grad.addColorStop(0, '#667eea');
+        grad.addColorStop(1, '#764ba2');
+        ctx.fillStyle = grad;
+        drawRoundRect(btnX, btnY, btnW, btnH, btnH / 2);
+        ctx.fill();
+
+        ctx.font = `bold ${Math.round(W * 0.05)}px sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText('Играть', W / 2, btnY + btnH / 2 + Math.round(W * 0.018));
+    }
+
+    function drawGameOver() {
+        ctx.fillStyle = 'rgba(22, 33, 62, 0.92)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.font = `${Math.round(W * 0.15)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(lives <= 0 ? '💔' : '🏆', W / 2, H * 0.28);
+
+        ctx.font = `bold ${Math.round(W * 0.07)}px sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.fillText(lives <= 0 ? 'Жизни кончились!' : 'Время вышло!', W / 2, H * 0.40);
+
+        ctx.font = `bold ${Math.round(W * 0.12)}px sans-serif`;
+        ctx.fillStyle = '#ffd740';
+        ctx.fillText(`${score}`, W / 2, H * 0.54);
+
+        ctx.font = `${Math.round(W * 0.04)}px sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText('предметов отсортировано', W / 2, H * 0.60);
+
+        const btnW = W * 0.5;
+        const btnH = H * 0.07;
+        const btnX = (W - btnW) / 2;
+        const btnY = H * 0.75;
+        const grad = ctx.createLinearGradient(btnX, btnY, btnX + btnW, btnY + btnH);
+        grad.addColorStop(0, '#667eea');
+        grad.addColorStop(1, '#764ba2');
+        ctx.fillStyle = grad;
+        drawRoundRect(btnX, btnY, btnW, btnH, btnH / 2);
+        ctx.fill();
+
+        ctx.font = `bold ${Math.round(W * 0.05)}px sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Ещё раз', W / 2, btnY + btnH / 2 + Math.round(W * 0.018));
+    }
+
+    // --- Game loop ---
+    function update(dt) {
+        if (state !== STATE.PLAYING) return;
+
+        timeLeft -= dt;
+        if (flashTimer > 0) flashTimer -= dt;
+        if (shakeTimer > 0) {
+            shakeTimer -= dt;
+            shakeX = (Math.random() - 0.5) * 8;
+        } else {
+            shakeX = 0;
+        }
+
+        if (timeLeft <= 0) {
+            timeLeft = 0;
+            state = STATE.OVER;
+            return;
+        }
+
+        if (item && flyDir !== 0) {
+            flyX += flyDir * W * 3 * dt;
+            flyAlpha -= dt * 3;
+            if (flyAlpha <= 0) {
+                item = null;
+                spawnTimer = spawnDelay();
+            }
+            return;
+        }
+
+        if (!item) {
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) spawnItem();
+            return;
+        }
+
+        itemY += itemVY * dt;
+
+        if (itemY > 1.05) {
+            lives--;
+            combo = 0;
+            shakeTimer = 0.3;
+            item = null;
+            spawnTimer = spawnDelay();
+            if (lives <= 0) state = STATE.OVER;
+        }
+    }
+
+    function render(dt) {
+        ctx.save();
+        ctx.translate(shakeX, 0);
+
+        if (state === STATE.MENU) {
+            drawMenu();
+        } else if (state === STATE.PLAYING) {
+            drawBackground();
+            drawItem(dt);
+            drawUI();
+        } else {
+            drawGameOver();
+        }
+
+        ctx.restore();
+    }
+
+    state = STATE.MENU;
+    lastTime = performance.now();
+
+    function gameLoop(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+        update(dt);
+        render(dt);
+        requestAnimationFrame(gameLoop);
+    }
+    requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
