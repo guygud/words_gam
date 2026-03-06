@@ -77,25 +77,19 @@ export class WordBuilderGame {
                 this.currentLetters, this.letterOfDay, minLen, longLen
             );
 
-            const minFreqByRatio = Math.ceil(count * (WORD_BUILDER_CONFIG.MIN_FREQUENT_RATIO || 0.5));
-            const requiredFreq = Math.max(minFreq, minFreqByRatio);
+            const score = freqCount * 3 + longCount * 10 - Math.abs(count - 25);
 
-            if (count < 5 || freqCount < 3) continue;
-            if (freqCount < requiredFreq) continue;
-
-            if (count < WORD_BUILDER_CONFIG.MIN_VALID_WORDS ||
-                count > WORD_BUILDER_CONFIG.MAX_VALID_WORDS) {
-                const score = -Math.abs(count - 25) + freqCount * 2;
+            if (count < 3) {
                 if (score > bestScore) { bestCandidate = [...candidate]; bestScore = score; }
                 continue;
             }
 
-            if (freqCount >= requiredFreq && longCount >= minLong) {
+            if (count >= WORD_BUILDER_CONFIG.MIN_VALID_WORDS &&
+                count <= WORD_BUILDER_CONFIG.MAX_VALID_WORDS &&
+                freqCount >= minFreq && longCount >= minLong) {
                 this.aroundLetters = candidate;
                 break;
             }
-
-            const score = freqCount + longCount * 10;
             if (score > bestScore) { bestCandidate = [...candidate]; bestScore = score; }
 
             if (attempt === WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS - 1 && bestCandidate) {

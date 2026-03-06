@@ -1,15 +1,15 @@
-const RUSSIAN_LETTERS = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя';
+const GOOD_DAY_LETTERS = 'абвгдежзиклмнопрстухчя';
 
 export const WORD_BUILDER_CONFIG = {
     LETTERS_COUNT: 7,
     MIN_WORD_LENGTH: 4,
 
-    // Буква дня — детерминированно по дате (+ опциональный сдвиг для "Сменить день")
     getLetterOfDay(dayOffset = 0) {
         const now = new Date();
         const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
         const dayIndex = Math.floor(dayStart / 86400000) + dayOffset;
-        return RUSSIAN_LETTERS[((dayIndex % RUSSIAN_LETTERS.length) + RUSSIAN_LETTERS.length) % RUSSIAN_LETTERS.length];
+        const len = GOOD_DAY_LETTERS.length;
+        return GOOD_DAY_LETTERS[((dayIndex % len) + len) % len];
     },
 
     // Энергия: 4 попытки смены букв в день
