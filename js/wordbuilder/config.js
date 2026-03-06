@@ -16,13 +16,14 @@ export const WORD_BUILDER_CONFIG = {
     ENERGY_START: 4,
     ENERGY_CHANGE_LETTERS: 1,
 
-    // Rejection sampling — строже для качества
-    MIN_VALID_WORDS: 15,
+    // Rejection sampling — строже для частотных слов
+    MIN_VALID_WORDS: 12,
     MAX_VALID_WORDS: 60,
-    MIN_FREQUENT_WORDS: 12,
+    MIN_FREQUENT_WORDS: 8,
+    MIN_FREQUENT_RATIO: 0.5,
     MIN_FREQUENT_LONG: 2,
     MIN_LONG_WORD_LENGTH: 7,
-    MAX_GENERATION_ATTEMPTS: 500,
+    MAX_GENERATION_ATTEMPTS: 800,
 
     COINS_REWARDS: {
         4: 3,

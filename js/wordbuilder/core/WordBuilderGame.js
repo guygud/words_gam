@@ -33,8 +33,17 @@ export class WordBuilderGame {
         this._generateAroundLetters();
     }
 
-    showLetters() {
-        this.lettersVisible = true;
+    revealOrChangeLettersForEnergy() {
+        const cost = WORD_BUILDER_CONFIG.ENERGY_CHANGE_LETTERS;
+        if (this.energy < cost) return null;
+        this.energy -= cost;
+        if (this.lettersVisible) {
+            this._generateAroundLetters();
+            return 'changed';
+        } else {
+            this.lettersVisible = true;
+            return 'revealed';
+        }
     }
 
     _generateAroundLetters() {
@@ -68,16 +77,20 @@ export class WordBuilderGame {
                 this.currentLetters, this.letterOfDay, minLen, longLen
             );
 
+            const minFreqByRatio = Math.ceil(count * (WORD_BUILDER_CONFIG.MIN_FREQUENT_RATIO || 0.5));
+            const requiredFreq = Math.max(minFreq, minFreqByRatio);
+
             if (count < 5 || freqCount < 3) continue;
+            if (freqCount < requiredFreq) continue;
 
             if (count < WORD_BUILDER_CONFIG.MIN_VALID_WORDS ||
                 count > WORD_BUILDER_CONFIG.MAX_VALID_WORDS) {
-                const score = -Math.abs(count - 25) + freqCount;
+                const score = -Math.abs(count - 25) + freqCount * 2;
                 if (score > bestScore) { bestCandidate = [...candidate]; bestScore = score; }
                 continue;
             }
 
-            if (freqCount >= minFreq && longCount >= minLong) {
+            if (freqCount >= requiredFreq && longCount >= minLong) {
                 this.aroundLetters = candidate;
                 break;
             }
@@ -103,13 +116,6 @@ export class WordBuilderGame {
         this.currentLetters = [this.letterOfDay, ...this.aroundLetters];
     }
 
-    changeLettersForEnergy() {
-        const cost = WORD_BUILDER_CONFIG.ENERGY_CHANGE_LETTERS;
-        if (this.energy < cost) return false;
-        this.energy -= cost;
-        this._generateAroundLetters();
-        return true;
-    }
 
     _sampleLetters(letters, frequencies) {
         const available = letters.slice();

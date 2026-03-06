@@ -38,21 +38,18 @@ export class WordBuilderInputHandler {
             this.updateDisplay();
         });
 
-        if (this.renderer.changeLettersBtn) {
-            this.renderer.changeLettersBtn.addEventListener('click', () => {
-                if (this.game.changeLettersForEnergy()) {
+        if (this.renderer.lettersActionBtn) {
+            this.renderer.lettersActionBtn.addEventListener('click', () => {
+                const result = this.game.revealOrChangeLettersForEnergy();
+                if (result) {
                     this.updateDisplay();
-                    this.renderer.showMessage('Буквы вокруг обновлены!', 'success');
+                    this.renderer.showMessage(
+                        result === 'revealed' ? 'Буквы показаны!' : 'Буквы обновлены!',
+                        'success'
+                    );
                 } else {
                     this.renderer.showMessage('Недостаточно энергии', 'error');
                 }
-            });
-        }
-
-        if (this.renderer.showLettersBtn) {
-            this.renderer.showLettersBtn.addEventListener('click', () => {
-                this.game.showLetters();
-                this.updateDisplay();
             });
         }
 
@@ -125,10 +122,10 @@ export class WordBuilderInputHandler {
         const state = this.game.getState();
 
         this.renderer.renderLetters(state.letters, state.goldenLetter, state.lettersVisible);
-        this.renderer.renderLetterVisibility(state.lettersVisible, this.renderer.showLettersBtn, this.renderer.changeDayBtn);
+        this.renderer.renderLettersActionBtn(state.lettersVisible, state.energy, WORD_BUILDER_CONFIG.ENERGY_CHANGE_LETTERS);
         this.renderer.renderCurrentWord(state.currentWord);
         this.renderer.renderCoins(state.coins);
-        this.renderer.renderEnergy(state.energy, WORD_BUILDER_CONFIG.ENERGY_CHANGE_LETTERS);
+        this.renderer.renderEnergy(state.energy);
         this.renderer.renderFoundWords(state.foundWords, WORD_BUILDER_CONFIG);
         this.renderer.renderAllValidWords(state.allValidWords, state.foundWords, WORD_BUILDER_CONFIG);
     }

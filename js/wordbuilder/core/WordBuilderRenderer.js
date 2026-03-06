@@ -2,8 +2,7 @@ export class WordBuilderRenderer {
     constructor() {
         this.coinsDisplay = document.getElementById('coinsDisplay');
         this.energyDisplay = document.getElementById('energyDisplay');
-        this.changeLettersBtn = document.getElementById('changeLettersBtn');
-        this.showLettersBtn = document.getElementById('showLettersBtn');
+        this.lettersActionBtn = document.getElementById('lettersActionBtn');
         this.changeDayBtn = document.getElementById('changeDayBtn');
         this.lettersContainer = document.getElementById('lettersContainer');
         this.wordDisplay = document.getElementById('wordDisplay');
@@ -54,12 +53,10 @@ export class WordBuilderRenderer {
         }
     }
 
-    renderLetterVisibility(lettersVisible, showLettersBtn, changeDayBtn) {
-        if (showLettersBtn) {
-            showLettersBtn.style.display = lettersVisible ? 'none' : 'inline-block';
-        }
-        if (changeDayBtn) {
-            changeDayBtn.style.display = 'inline-block';
+    renderLettersActionBtn(lettersVisible, energy, cost) {
+        if (this.lettersActionBtn) {
+            this.lettersActionBtn.textContent = lettersVisible ? 'Сменить буквы (1 энергия)' : 'Показать буквы (1 энергия)';
+            this.lettersActionBtn.disabled = energy < cost;
         }
     }
 
@@ -88,11 +85,8 @@ export class WordBuilderRenderer {
         this.coinsDisplay.textContent = coins.toLocaleString('ru-RU');
     }
 
-    renderEnergy(energy, cost) {
+    renderEnergy(energy) {
         if (this.energyDisplay) this.energyDisplay.textContent = `⚡ ${energy}`;
-        if (this.changeLettersBtn) {
-            this.changeLettersBtn.disabled = energy < cost;
-        }
     }
 
     renderFoundWords(foundWords, coinsRewards) {

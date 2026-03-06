@@ -79,7 +79,7 @@
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
         }
         
-        .change-letters-btn {
+        .letters-action-btn {
             background: #667eea;
             color: white;
             border: none;
@@ -91,29 +91,13 @@
             transition: background 0.3s;
         }
         
-        .change-letters-btn:hover {
+        .letters-action-btn:hover {
             background: #5568d3;
         }
         
-        .change-letters-btn:disabled {
+        .letters-action-btn:disabled {
             background: #ccc;
             cursor: not-allowed;
-        }
-        
-        .show-letters-btn {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background 0.3s;
-        }
-        
-        .show-letters-btn:hover {
-            background: #45a049;
         }
         
         .change-day-btn {
@@ -431,15 +415,14 @@
         <div class="game-header">
             <div class="coins-display" id="coinsDisplay">0</div>
             <div class="energy-display" id="energyDisplay">⚡ 4</div>
-            <button class="show-letters-btn" id="showLettersBtn">Показать буквы</button>
-            <button class="change-letters-btn" id="changeLettersBtn">Сменить буквы (1 энергия)</button>
+            <button class="letters-action-btn" id="lettersActionBtn">Показать буквы (1 энергия)</button>
             <button class="change-day-btn" id="changeDayBtn">Сменить день</button>
         </div>
         
         <div id="message" class="message"></div>
         
         <div class="letters-section">
-            <div class="section-title">Буква дня (центр). Нажмите «Показать буквы» чтобы увидеть 6 букв вокруг. До 4 попыток смены в день.</div>
+            <div class="section-title">Буква дня (центр). Одна кнопка — показать или сменить буквы (1 энергия). До 4 попыток в день.</div>
             <div class="letters-container" id="lettersContainer"></div>
         </div>
         
@@ -462,8 +445,8 @@
         <div class="coins-info">
             <h3>📋 Правила:</h3>
             <p style="margin-bottom:10px"><strong>Буква дня</strong> — фиксированная буква в центре (меняется раз в день). Слово обязательно должно её содержать.</p>
-            <p style="margin-bottom:10px"><strong>В начале дня</strong> видны только буква дня. Нажмите «Показать буквы» чтобы увидеть 6 букв вокруг.</p>
-            <p style="margin-bottom:10px"><strong>Энергия</strong> — 4 попытки смены букв в день. Слова не повторяются в рамках дня.</p>
+            <p style="margin-bottom:10px"><strong>Одна кнопка</strong> — первый показ и смена букв стоят по 1 энергии. До 4 попыток в день.</p>
+            <p style="margin-bottom:10px"><strong>Слова</strong> не повторяются в рамках дня.</p>
             <h3 style="margin-top:15px">💰 Система начисления монет:</h3>
             <table>
                 <tr><td>4 буквы</td><td>3 монеты</td></tr>
