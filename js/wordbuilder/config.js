@@ -1,6 +1,21 @@
+const RUSSIAN_LETTERS = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя';
+
 export const WORD_BUILDER_CONFIG = {
     LETTERS_COUNT: 7,
     MIN_WORD_LENGTH: 4,
+
+    // Буква дня — детерминированно по дате
+    getLetterOfDay() {
+        const now = new Date();
+        const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const dayIndex = Math.floor(dayStart / 86400000);
+        return RUSSIAN_LETTERS[dayIndex % RUSSIAN_LETTERS.length];
+    },
+
+    // Энергия: смена 6 букв вокруг буквы дня
+    ENERGY_START: 5,
+    ENERGY_MAX: 10,
+    ENERGY_CHANGE_LETTERS: 1,
 
     // Rejection sampling
     MIN_VALID_WORDS: 10,

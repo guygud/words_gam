@@ -4,82 +4,50 @@ export class WordBuilderGame {
     constructor(dictionaryService, wordIndex) {
         this.dictionaryService = dictionaryService;
         this.wordIndex = wordIndex;
+        this.letterOfDay = WORD_BUILDER_CONFIG.getLetterOfDay();
+        this.aroundLetters = [];
         this.currentLetters = [];
-        this.goldenLetter = null;
+        this.goldenLetter = this.letterOfDay;
         this.currentWord = [];
         this.foundWords = new Set();
         this.coins = 0;
+        this.energy = WORD_BUILDER_CONFIG.ENERGY_START;
         this.totalValidWords = 0;
         this.allValidWords = [];
 
-        this.generateNewSet();
+        this._generateAroundLetters();
     }
 
-    generateNewSet() {
-        const letters = Object.keys(WORD_BUILDER_CONFIG.LETTER_FREQUENCIES);
-        const frequencies = Object.values(WORD_BUILDER_CONFIG.LETTER_FREQUENCIES);
-        const minLen = WORD_BUILDER_CONFIG.MIN_WORD_LENGTH;
-        const minFreq = WORD_BUILDER_CONFIG.MIN_FREQUENT_WORDS;
-        const minLong = WORD_BUILDER_CONFIG.MIN_FREQUENT_LONG;
-        const longLen = WORD_BUILDER_CONFIG.MIN_LONG_WORD_LENGTH;
-
-        let bestCandidate = null;
-        let bestScore = -Infinity;
-
-        for (let attempt = 0; attempt < WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS; attempt++) {
-            const candidate = this._sampleLetters(letters, frequencies);
-
-            if (!this.wordIndex) {
-                this.currentLetters = candidate;
-                break;
-            }
-
-            const count = this.wordIndex.countForSet(candidate, minLen);
-            if (count < WORD_BUILDER_CONFIG.MIN_VALID_WORDS ||
-                count > WORD_BUILDER_CONFIG.MAX_VALID_WORDS) {
-                const score = -Math.abs(count - 20);
-                if (score > bestScore) { bestCandidate = candidate; bestScore = score; }
-                continue;
-            }
-
-            const golden = this._bestGoldenFor(candidate, minLen);
-            const { total: freqCount, longCount } = this.wordIndex.countFrequentForSet(
-                candidate, golden, minLen, longLen
-            );
-            if (freqCount >= minFreq && longCount >= minLong) {
-                this.currentLetters = candidate;
-                break;
-            }
-
-            const score = freqCount + longCount * 10;
-            if (score > bestScore) { bestCandidate = candidate; bestScore = score; }
-
-            if (attempt === WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS - 1) {
-                this.currentLetters = bestCandidate;
-            }
-        }
-
+    _generateAroundLetters() {
+        const entries = Object.entries(WORD_BUILDER_CONFIG.LETTER_FREQUENCIES)
+            .filter(([l]) => l !== this.letterOfDay);
+        this.aroundLetters = this._sampleLetters(
+            entries.map(([l]) => l),
+            entries.map(([, f]) => f)
+        );
+        this._rebuildCurrentLetters();
         this._pickGoldenLetter();
-
         this.currentWord = [];
-        this.foundWords = new Set();
     }
 
-    _bestGoldenFor(letters, minLen) {
-        const counts = this.wordIndex.countPerGolden(letters, minLen);
-        let best = letters[0], bestCount = 0;
-        for (const [letter, count] of counts) {
-            if (count > bestCount) { bestCount = count; best = letter; }
-        }
-        return best;
+    _rebuildCurrentLetters() {
+        this.currentLetters = [this.letterOfDay, ...this.aroundLetters];
+    }
+
+    changeLettersForEnergy() {
+        const cost = WORD_BUILDER_CONFIG.ENERGY_CHANGE_LETTERS;
+        if (this.energy < cost) return false;
+        this.energy -= cost;
+        this._generateAroundLetters();
+        return true;
     }
 
     _sampleLetters(letters, frequencies) {
         const available = letters.slice();
-        const weights = frequencies.slice();
+        const weights = [...frequencies];
         const selected = [];
 
-        for (let i = 0; i < WORD_BUILDER_CONFIG.LETTERS_COUNT && available.length > 0; i++) {
+        for (let i = 0; i < 6 && available.length > 0; i++) {
             let totalFreq = 0;
             for (const f of weights) totalFreq += f;
 
@@ -101,18 +69,13 @@ export class WordBuilderGame {
     }
 
     _pickGoldenLetter() {
+        this.goldenLetter = this.letterOfDay;
         if (!this.wordIndex) {
-            this.goldenLetter = this.currentLetters[
-                Math.floor(Math.random() * this.currentLetters.length)
-            ];
             this.totalValidWords = 0;
             this.allValidWords = [];
             return;
         }
-
         const minLen = WORD_BUILDER_CONFIG.MIN_WORD_LENGTH;
-        this.goldenLetter = this._bestGoldenFor(this.currentLetters, minLen);
-
         const entries = this.wordIndex.getValidWords(
             this.currentLetters, this.goldenLetter, minLen
         );
@@ -151,7 +114,7 @@ export class WordBuilderGame {
         }
 
         if (!word.includes(this.goldenLetter.toLowerCase())) {
-            return { valid: false, error: 'Слово должно содержать золотую букву!' };
+            return { valid: false, error: 'Слово должно содержать букву дня!' };
         }
 
         // Битмаск-проверка: все уникальные буквы слова должны быть в наборе
@@ -183,10 +146,13 @@ export class WordBuilderGame {
     getState() {
         return {
             letters: this.currentLetters,
+            letterOfDay: this.letterOfDay,
             goldenLetter: this.goldenLetter,
+            aroundLetters: this.aroundLetters,
             currentWord: this.currentWord,
             foundWords: Array.from(this.foundWords),
             coins: this.coins,
+            energy: this.energy,
             totalValidWords: this.totalValidWords,
             allValidWords: this.allValidWords
         };

@@ -48,11 +48,11 @@
         
         .game-header {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
             margin-bottom: 30px;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 16px;
         }
         
         .coins-display {
@@ -69,7 +69,17 @@
             content: "💰 ";
         }
         
-        .new-set-btn {
+        .energy-display {
+            background: linear-gradient(135deg, #4CAF50 0%, #2e7d32 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .change-letters-btn {
             background: #667eea;
             color: white;
             border: none;
@@ -81,8 +91,13 @@
             transition: background 0.3s;
         }
         
-        .new-set-btn:hover {
+        .change-letters-btn:hover {
             background: #5568d3;
+        }
+        
+        .change-letters-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
         }
         
         .letters-section {
@@ -383,13 +398,14 @@
         
         <div class="game-header">
             <div class="coins-display" id="coinsDisplay">0</div>
-            <button class="new-set-btn" id="newSetBtn">Новый набор букв</button>
+            <div class="energy-display" id="energyDisplay">⚡ 5</div>
+            <button class="change-letters-btn" id="changeLettersBtn">Сменить буквы (1 энергия)</button>
         </div>
         
         <div id="message" class="message"></div>
         
         <div class="letters-section">
-            <div class="section-title">Доступные буквы:</div>
+            <div class="section-title">Буква дня (центр) + 6 букв вокруг:</div>
             <div class="letters-container" id="lettersContainer"></div>
         </div>
         
@@ -410,7 +426,10 @@
         <div id="allWordsSpoiler" class="all-words-spoiler"></div>
         
         <div class="coins-info">
-            <h3>💰 Система начисления монет:</h3>
+            <h3>📋 Правила:</h3>
+            <p style="margin-bottom:10px"><strong>Буква дня</strong> — фиксированная буква в центре (меняется раз в день). Слово обязательно должно её содержать.</p>
+            <p style="margin-bottom:10px"><strong>Энергия</strong> — тратится на смену 6 букв вокруг буквы дня. Начальный запас: 5.</p>
+            <h3 style="margin-top:15px">💰 Система начисления монет:</h3>
             <table>
                 <tr><td>4 буквы</td><td>3 монеты</td></tr>
                 <tr><td>5 букв</td><td>6 монет</td></tr>

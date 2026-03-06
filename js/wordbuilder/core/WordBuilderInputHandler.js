@@ -38,12 +38,14 @@ export class WordBuilderInputHandler {
             this.updateDisplay();
         });
 
-        const newSetBtn = document.getElementById('newSetBtn');
-        if (newSetBtn) {
-            newSetBtn.addEventListener('click', () => {
-                this.game.generateNewSet();
-                this.updateDisplay();
-                this.renderer.showMessage('Новый набор букв сгенерирован!', 'success');
+        if (this.renderer.changeLettersBtn) {
+            this.renderer.changeLettersBtn.addEventListener('click', () => {
+                if (this.game.changeLettersForEnergy()) {
+                    this.updateDisplay();
+                    this.renderer.showMessage('Буквы вокруг обновлены!', 'success');
+                } else {
+                    this.renderer.showMessage('Недостаточно энергии', 'error');
+                }
             });
         }
 
@@ -110,6 +112,7 @@ export class WordBuilderInputHandler {
         this.renderer.renderLetters(state.letters, state.goldenLetter);
         this.renderer.renderCurrentWord(state.currentWord);
         this.renderer.renderCoins(state.coins);
+        this.renderer.renderEnergy(state.energy, WORD_BUILDER_CONFIG.ENERGY_CHANGE_LETTERS);
         this.renderer.renderFoundWords(state.foundWords, WORD_BUILDER_CONFIG);
         this.renderer.renderAllValidWords(state.allValidWords, state.foundWords, WORD_BUILDER_CONFIG);
     }

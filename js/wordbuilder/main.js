@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     console.log('Словостроитель запущен!');
     const state = game.getState();
+    console.log('Буква дня:', state.letterOfDay.toUpperCase());
     console.log('Буквы:', state.letters.map(l => l.toUpperCase()).join(' '));
-    console.log('Золотая:', state.goldenLetter.toUpperCase());
     console.log('Доступно слов:', state.totalValidWords);
 });

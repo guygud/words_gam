@@ -1,6 +1,8 @@
 export class WordBuilderRenderer {
     constructor() {
         this.coinsDisplay = document.getElementById('coinsDisplay');
+        this.energyDisplay = document.getElementById('energyDisplay');
+        this.changeLettersBtn = document.getElementById('changeLettersBtn');
         this.lettersContainer = document.getElementById('lettersContainer');
         this.wordDisplay = document.getElementById('wordDisplay');
         this.wordsList = document.getElementById('wordsList');
@@ -18,10 +20,11 @@ export class WordBuilderRenderer {
 
         const cx = 130, cy = 130, radius = 85;
 
-        // Золотая буква — центр цветка
+        // Буква дня — центр (неизменяемая)
         if (goldenIdx >= 0) {
             const tile = document.createElement('div');
-            tile.className = 'letter-tile golden';
+            tile.className = 'letter-tile golden letter-of-day';
+            tile.title = 'Буква дня';
             tile.textContent = letters[goldenIdx].toUpperCase();
             tile.dataset.index = goldenIdx;
             tile.style.left = cx + 'px';
@@ -70,6 +73,13 @@ export class WordBuilderRenderer {
 
     renderCoins(coins) {
         this.coinsDisplay.textContent = coins.toLocaleString('ru-RU');
+    }
+
+    renderEnergy(energy, cost) {
+        if (this.energyDisplay) this.energyDisplay.textContent = `⚡ ${energy}`;
+        if (this.changeLettersBtn) {
+            this.changeLettersBtn.disabled = energy < cost;
+        }
     }
 
     renderFoundWords(foundWords, coinsRewards) {
