@@ -49,6 +49,21 @@ export class WordBuilderInputHandler {
             });
         }
 
+        if (this.renderer.showLettersBtn) {
+            this.renderer.showLettersBtn.addEventListener('click', () => {
+                this.game.showLetters();
+                this.updateDisplay();
+            });
+        }
+
+        if (this.renderer.changeDayBtn) {
+            this.renderer.changeDayBtn.addEventListener('click', () => {
+                this.game.changeDay();
+                this.updateDisplay();
+                this.renderer.showMessage('Новый день! Буква дня обновлена.', 'success');
+            });
+        }
+
         document.addEventListener('keydown', (e) => {
             this.handleKeyboard(e);
         });
@@ -109,7 +124,8 @@ export class WordBuilderInputHandler {
     updateDisplay() {
         const state = this.game.getState();
 
-        this.renderer.renderLetters(state.letters, state.goldenLetter);
+        this.renderer.renderLetters(state.letters, state.goldenLetter, state.lettersVisible);
+        this.renderer.renderLetterVisibility(state.lettersVisible, this.renderer.showLettersBtn, this.renderer.changeDayBtn);
         this.renderer.renderCurrentWord(state.currentWord);
         this.renderer.renderCoins(state.coins);
         this.renderer.renderEnergy(state.energy, WORD_BUILDER_CONFIG.ENERGY_CHANGE_LETTERS);

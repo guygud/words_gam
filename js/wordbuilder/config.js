@@ -4,26 +4,25 @@ export const WORD_BUILDER_CONFIG = {
     LETTERS_COUNT: 7,
     MIN_WORD_LENGTH: 4,
 
-    // Буква дня — детерминированно по дате
-    getLetterOfDay() {
+    // Буква дня — детерминированно по дате (+ опциональный сдвиг для "Сменить день")
+    getLetterOfDay(dayOffset = 0) {
         const now = new Date();
         const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        const dayIndex = Math.floor(dayStart / 86400000);
-        return RUSSIAN_LETTERS[dayIndex % RUSSIAN_LETTERS.length];
+        const dayIndex = Math.floor(dayStart / 86400000) + dayOffset;
+        return RUSSIAN_LETTERS[((dayIndex % RUSSIAN_LETTERS.length) + RUSSIAN_LETTERS.length) % RUSSIAN_LETTERS.length];
     },
 
-    // Энергия: смена 6 букв вокруг буквы дня
-    ENERGY_START: 5,
-    ENERGY_MAX: 10,
+    // Энергия: 4 попытки смены букв в день
+    ENERGY_START: 4,
     ENERGY_CHANGE_LETTERS: 1,
 
-    // Rejection sampling
-    MIN_VALID_WORDS: 10,
-    MAX_VALID_WORDS: 50,
-    MIN_FREQUENT_WORDS: 10,
-    MIN_FREQUENT_LONG: 1,
+    // Rejection sampling — строже для качества
+    MIN_VALID_WORDS: 15,
+    MAX_VALID_WORDS: 60,
+    MIN_FREQUENT_WORDS: 12,
+    MIN_FREQUENT_LONG: 2,
     MIN_LONG_WORD_LENGTH: 7,
-    MAX_GENERATION_ATTEMPTS: 200,
+    MAX_GENERATION_ATTEMPTS: 500,
 
     COINS_REWARDS: {
         4: 3,

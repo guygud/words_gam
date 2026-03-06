@@ -1,10 +1,13 @@
 import { WORD_BUILDER_CONFIG } from '../config.js';
 
+const STORAGE_DAY_OFFSET = 'wordbuilder_dayOffset';
+
 export class WordBuilderGame {
     constructor(dictionaryService, wordIndex) {
         this.dictionaryService = dictionaryService;
         this.wordIndex = wordIndex;
-        this.letterOfDay = WORD_BUILDER_CONFIG.getLetterOfDay();
+        this.dayOffset = parseInt(sessionStorage.getItem(STORAGE_DAY_OFFSET) || '0', 10);
+        this.letterOfDay = WORD_BUILDER_CONFIG.getLetterOfDay(this.dayOffset);
         this.aroundLetters = [];
         this.currentLetters = [];
         this.goldenLetter = this.letterOfDay;
@@ -12,10 +15,26 @@ export class WordBuilderGame {
         this.foundWords = new Set();
         this.coins = 0;
         this.energy = WORD_BUILDER_CONFIG.ENERGY_START;
+        this.lettersVisible = false;
         this.totalValidWords = 0;
         this.allValidWords = [];
 
         this._generateAroundLetters();
+    }
+
+    changeDay() {
+        this.dayOffset++;
+        sessionStorage.setItem(STORAGE_DAY_OFFSET, String(this.dayOffset));
+        this.letterOfDay = WORD_BUILDER_CONFIG.getLetterOfDay(this.dayOffset);
+        this.coins = 0;
+        this.energy = WORD_BUILDER_CONFIG.ENERGY_START;
+        this.foundWords = new Set();
+        this.lettersVisible = false;
+        this._generateAroundLetters();
+    }
+
+    showLetters() {
+        this.lettersVisible = true;
     }
 
     _generateAroundLetters() {
@@ -45,16 +64,19 @@ export class WordBuilderGame {
                 this.currentLetters, this.letterOfDay, minLen
             );
 
+            const { total: freqCount, longCount } = this.wordIndex.countFrequentForSet(
+                this.currentLetters, this.letterOfDay, minLen, longLen
+            );
+
+            if (count < 5 || freqCount < 3) continue;
+
             if (count < WORD_BUILDER_CONFIG.MIN_VALID_WORDS ||
                 count > WORD_BUILDER_CONFIG.MAX_VALID_WORDS) {
-                const score = -Math.abs(count - 25);
+                const score = -Math.abs(count - 25) + freqCount;
                 if (score > bestScore) { bestCandidate = [...candidate]; bestScore = score; }
                 continue;
             }
 
-            const { total: freqCount, longCount } = this.wordIndex.countFrequentForSet(
-                this.currentLetters, this.letterOfDay, minLen, longLen
-            );
             if (freqCount >= minFreq && longCount >= minLong) {
                 this.aroundLetters = candidate;
                 break;
@@ -66,6 +88,10 @@ export class WordBuilderGame {
             if (attempt === WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS - 1 && bestCandidate) {
                 this.aroundLetters = bestCandidate;
             }
+        }
+
+        if (!bestCandidate && !this.aroundLetters.length) {
+            this.aroundLetters = this._sampleLetters(letters, frequencies);
         }
 
         this._rebuildCurrentLetters();
@@ -196,6 +222,7 @@ export class WordBuilderGame {
             foundWords: Array.from(this.foundWords),
             coins: this.coins,
             energy: this.energy,
+            lettersVisible: this.lettersVisible,
             totalValidWords: this.totalValidWords,
             allValidWords: this.allValidWords
         };

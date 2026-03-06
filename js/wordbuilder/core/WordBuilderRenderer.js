@@ -3,6 +3,8 @@ export class WordBuilderRenderer {
         this.coinsDisplay = document.getElementById('coinsDisplay');
         this.energyDisplay = document.getElementById('energyDisplay');
         this.changeLettersBtn = document.getElementById('changeLettersBtn');
+        this.showLettersBtn = document.getElementById('showLettersBtn');
+        this.changeDayBtn = document.getElementById('changeDayBtn');
         this.lettersContainer = document.getElementById('lettersContainer');
         this.wordDisplay = document.getElementById('wordDisplay');
         this.wordsList = document.getElementById('wordsList');
@@ -11,7 +13,7 @@ export class WordBuilderRenderer {
         this.clearBtn = document.getElementById('clearBtn');
     }
 
-    renderLetters(letters, goldenLetter) {
+    renderLetters(letters, goldenLetter, lettersVisible) {
         this.lettersContainer.innerHTML = '';
 
         const goldenIdx = letters.indexOf(goldenLetter);
@@ -20,7 +22,7 @@ export class WordBuilderRenderer {
 
         const cx = 130, cy = 130, radius = 85;
 
-        // Буква дня — центр (неизменяемая)
+        // Буква дня — центр (всегда видна)
         if (goldenIdx >= 0) {
             const tile = document.createElement('div');
             tile.className = 'letter-tile golden letter-of-day';
@@ -33,21 +35,32 @@ export class WordBuilderRenderer {
             this.lettersContainer.appendChild(tile);
         }
 
-        // Лепестки вокруг центра
-        petals.forEach((p, i) => {
-            const angle = (Math.PI * 2 * i / petals.length) - Math.PI / 2;
-            const x = cx + Math.cos(angle) * radius;
-            const y = cy + Math.sin(angle) * radius;
+        // Лепестки — только если буквы показаны
+        if (lettersVisible) {
+            petals.forEach((p, i) => {
+                const angle = (Math.PI * 2 * i / petals.length) - Math.PI / 2;
+                const x = cx + Math.cos(angle) * radius;
+                const y = cy + Math.sin(angle) * radius;
 
-            const tile = document.createElement('div');
-            tile.className = 'letter-tile';
-            tile.textContent = p.letter.toUpperCase();
-            tile.dataset.index = p.index;
-            tile.style.left = x + 'px';
-            tile.style.top = y + 'px';
-            tile.style.transform = 'translate(-50%, -50%)';
-            this.lettersContainer.appendChild(tile);
-        });
+                const tile = document.createElement('div');
+                tile.className = 'letter-tile';
+                tile.textContent = p.letter.toUpperCase();
+                tile.dataset.index = p.index;
+                tile.style.left = x + 'px';
+                tile.style.top = y + 'px';
+                tile.style.transform = 'translate(-50%, -50%)';
+                this.lettersContainer.appendChild(tile);
+            });
+        }
+    }
+
+    renderLetterVisibility(lettersVisible, showLettersBtn, changeDayBtn) {
+        if (showLettersBtn) {
+            showLettersBtn.style.display = lettersVisible ? 'none' : 'inline-block';
+        }
+        if (changeDayBtn) {
+            changeDayBtn.style.display = 'inline-block';
+        }
     }
 
     renderCurrentWord(currentWord) {
