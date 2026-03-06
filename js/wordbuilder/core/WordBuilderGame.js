@@ -21,10 +21,53 @@ export class WordBuilderGame {
     _generateAroundLetters() {
         const entries = Object.entries(WORD_BUILDER_CONFIG.LETTER_FREQUENCIES)
             .filter(([l]) => l !== this.letterOfDay);
-        this.aroundLetters = this._sampleLetters(
-            entries.map(([l]) => l),
-            entries.map(([, f]) => f)
-        );
+        const letters = entries.map(([l]) => l);
+        const frequencies = entries.map(([, f]) => f);
+        const minLen = WORD_BUILDER_CONFIG.MIN_WORD_LENGTH;
+        const minFreq = WORD_BUILDER_CONFIG.MIN_FREQUENT_WORDS;
+        const minLong = WORD_BUILDER_CONFIG.MIN_FREQUENT_LONG;
+        const longLen = WORD_BUILDER_CONFIG.MIN_LONG_WORD_LENGTH;
+
+        let bestCandidate = null;
+        let bestScore = -Infinity;
+
+        for (let attempt = 0; attempt < WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS; attempt++) {
+            const candidate = this._sampleLetters(letters, frequencies);
+
+            if (!this.wordIndex) {
+                this.aroundLetters = candidate;
+                break;
+            }
+
+            this.aroundLetters = candidate;
+            this._rebuildCurrentLetters();
+            const count = this.wordIndex.countForSetWithGolden(
+                this.currentLetters, this.letterOfDay, minLen
+            );
+
+            if (count < WORD_BUILDER_CONFIG.MIN_VALID_WORDS ||
+                count > WORD_BUILDER_CONFIG.MAX_VALID_WORDS) {
+                const score = -Math.abs(count - 25);
+                if (score > bestScore) { bestCandidate = [...candidate]; bestScore = score; }
+                continue;
+            }
+
+            const { total: freqCount, longCount } = this.wordIndex.countFrequentForSet(
+                this.currentLetters, this.letterOfDay, minLen, longLen
+            );
+            if (freqCount >= minFreq && longCount >= minLong) {
+                this.aroundLetters = candidate;
+                break;
+            }
+
+            const score = freqCount + longCount * 10;
+            if (score > bestScore) { bestCandidate = [...candidate]; bestScore = score; }
+
+            if (attempt === WORD_BUILDER_CONFIG.MAX_GENERATION_ATTEMPTS - 1 && bestCandidate) {
+                this.aroundLetters = bestCandidate;
+            }
+        }
+
         this._rebuildCurrentLetters();
         this._pickGoldenLetter();
         this.currentWord = [];
