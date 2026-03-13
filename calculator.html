@@ -98,6 +98,7 @@ section h2.open::before { transform: rotate(90deg); }
 .params-grid.cols-2 { grid-template-columns: 1fr 1fr; }
 .params-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
 .params-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.params-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
 .params-grid.cols-6 { grid-template-columns: repeat(6, 1fr); }
 
 .field { display: flex; flex-direction: column; gap: 2px; }
@@ -262,6 +263,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 @media (max-width: 600px) {
   .summary-row { grid-template-columns: 1fr; }
   .params-grid.cols-6 { grid-template-columns: repeat(3, 1fr); }
+  .params-grid.cols-5 { grid-template-columns: repeat(2, 1fr); }
   .params-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
@@ -272,7 +274,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
   <header>
     <div>
       <a href="index.html" class="back-link">&larr; Все игры</a>
-      <h1>Калькулятор прогресса по зонам</h1>
+      <h1>Калькулятор прогресса: Курагочи</h1>
     </div>
     <div class="header-actions">
       <button class="btn primary" onclick="copyShareLink()">Скопировать ссылку</button>
@@ -305,7 +307,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 
   <!-- Global: Zones -->
   <section>
-    <h2 class="open" onclick="toggleSection(this)">Стоимость зон (монеты)</h2>
+    <h2 class="open" onclick="toggleSection(this)">Стоимость зон (5 зон × 4 комнаты)</h2>
     <div class="collapsible-content open">
       <div class="params-grid cols-6" id="zoneParams"></div>
     </div>
@@ -313,9 +315,9 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 
   <!-- Global: Energy -->
   <section>
-    <h2 onclick="toggleSection(this)">Энергия по уровням</h2>
+    <h2 onclick="toggleSection(this)">Энергия по зонам</h2>
     <div class="collapsible-content">
-      <div class="params-grid cols-4" id="energyParams"></div>
+      <div class="params-grid cols-5" id="energyParams"></div>
     </div>
   </section>
 
@@ -327,9 +329,9 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
     </div>
   </section>
 
-  <!-- Global: Anchors & Subscription -->
+  <!-- Global: Anchors -->
   <section>
-    <h2 onclick="toggleSection(this)">Якоря и подписка</h2>
+    <h2 onclick="toggleSection(this)">Якоря</h2>
     <div class="collapsible-content">
       <div class="params-grid cols-4" id="anchorParams"></div>
     </div>
@@ -350,56 +352,56 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 'use strict';
 
 const ZONES = [
-  { key: 'z0', name: 'Кресло', cost: 20 },
-  { key: 'z1', name: 'Стена', cost: 512 },
-  { key: 'z2', name: 'Стеллаж 1', cost: 1776 },
-  { key: 'z3', name: 'Стеллаж 2', cost: 2414 },
-  { key: 'z4', name: 'Стеллаж 3', cost: 2254 },
-  { key: 'z5', name: 'Потолок', cost: 3150 },
+  { key: 'z0', name: 'Зона 1', cost: 250 },
+  { key: 'z1', name: 'Зона 2', cost: 400 },
+  { key: 'z2', name: 'Зона 3', cost: 600 },
+  { key: 'z3', name: 'Зона 4', cost: 800 },
+  { key: 'z4', name: 'Зона 5', cost: 950 },
 ];
 
 const ENERGY_LEVELS = [
-  { key: 'e0', label: 'Ур.1 (старт)', cap: 10, regenPerHour: 1.67 },
-  { key: 'e1', label: 'Ур.2 (после Стелл.1)', cap: 12, regenPerHour: 2.0 },
-  { key: 'e2', label: 'Ур.3 (после Стелл.2)', cap: 14, regenPerHour: 2.33 },
-  { key: 'e3', label: 'Ур.4 (после Стелл.3)', cap: 16, regenPerHour: 2.67 },
+  { key: 'e0', label: 'Зона 1 (старт)', cap: 16, regenPerHour: 4.0 },
+  { key: 'e1', label: 'Зона 2', cap: 20, regenPerHour: 5.0 },
+  { key: 'e2', label: 'Зона 3', cap: 24, regenPerHour: 6.4 },
+  { key: 'e3', label: 'Зона 4', cap: 28, regenPerHour: 8.0 },
+  { key: 'e4', label: 'Зона 5 (конец)', cap: 32, regenPerHour: 10.67 },
 ];
 
 const GAMES = [
-  { key: 'gA', name: 'Игра A', energyCost: 4, reward: 10, rubPrice: 0 },
-  { key: 'gB', name: 'Игра B', energyCost: 8, reward: 20, rubPrice: 0 },
-  { key: 'gC', name: 'Слова (C)', energyCost: 1, reward: 5, rubPrice: 0 },
+  { key: 'gA', name: 'Пазл', energyCost: 4, reward: 20 },
+  { key: 'gB', name: 'ОТК', energyCost: 4, reward: 20 },
+  { key: 'gC', name: 'СловоЦвет', energyCost: 4, reward: 20 },
 ];
 
 const ANCHOR_TYPES = [
-  { key: 'aL', name: 'Лёгкий', energy: 3, rubPrice: 10, coinReward: 15 },
-  { key: 'aM', name: 'Средний', energy: 6, rubPrice: 50, coinReward: 40 },
-  { key: 'aH', name: 'Тяжёлый', energy: 13, rubPrice: 100, coinReward: 90 },
+  { key: 'aL', name: 'Лёгкий', energy: 4, rubPrice: 10 },
+  { key: 'aM', name: 'Средний', energy: 8, rubPrice: 50 },
+  { key: 'aH', name: 'Тяжёлый', energy: 16, rubPrice: 100 },
 ];
 
 const PLAYERS = [
   {
-    key: 'p0', name: 'Обычный',
-    daysPerWeek: 4, sessionsPerDay: 1.5, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 1.5 }],
-    games: [0, 2], subscription: false,
-  },
-  {
-    key: 'p1', name: 'Обычный + Подписка',
-    daysPerWeek: 4, sessionsPerDay: 2, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 1.5 }],
-    games: [0, 2], subscription: true,
-  },
-  {
-    key: 'p2', name: 'Фродер',
-    daysPerWeek: 7, sessionsPerDay: 3, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 0.5 }],
+    key: 'p0', name: 'Невовлеченный',
+    daysPerWeek: 3, sessionsPerDay: 1, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 1.4 }],
     games: [0, 1, 2], subscription: false,
   },
   {
-    key: 'p3', name: 'Вкладывается',
-    daysPerWeek: 7, sessionsPerDay: 2.5, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 2.5 }, { type: 1, count: 2 }, { type: 2, count: 1.5 }],
+    key: 'p1', name: 'Вовлеченный',
+    daysPerWeek: 4, sessionsPerDay: 2, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 3.5 }, { type: 1, count: 1.4 }],
+    games: [0, 1, 2], subscription: false,
+  },
+  {
+    key: 'p2', name: 'Вовлеченный + Смарт',
+    daysPerWeek: 4, sessionsPerDay: 2, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 3.5 }, { type: 1, count: 1.4 }],
+    games: [0, 1, 2], subscription: true,
+  },
+  {
+    key: 'p3', name: 'Хардкор',
+    daysPerWeek: 7, sessionsPerDay: 3, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 5 }, { type: 1, count: 2 }, { type: 2, count: 1 }],
     games: [0, 1, 2], subscription: true,
   },
 ];
@@ -412,11 +414,10 @@ function buildDefaultState() {
   const s = {};
   s.actDays = 90;
   s.numRuns = 1000;
-  s.subRub = 100;
   ZONES.forEach(z => s[z.key] = z.cost);
   ENERGY_LEVELS.forEach(e => { s[e.key + '_cap'] = e.cap; s[e.key + '_rph'] = e.regenPerHour; });
-  GAMES.forEach(g => { s[g.key + '_cost'] = g.energyCost; s[g.key + '_reward'] = g.reward; s[g.key + '_rub'] = g.rubPrice; });
-  ANCHOR_TYPES.forEach(a => { s[a.key] = a.energy; s[a.key + '_rub'] = a.rubPrice; s[a.key + '_coins'] = a.coinReward ?? 0; });
+  GAMES.forEach(g => { s[g.key + '_cost'] = g.energyCost; s[g.key + '_reward'] = g.reward; });
+  ANCHOR_TYPES.forEach(a => { s[a.key] = a.energy; s[a.key + '_rub'] = a.rubPrice; });
   PLAYERS.forEach(p => {
     s[p.key + '_days'] = p.daysPerWeek;
     s[p.key + '_sess'] = p.sessionsPerDay;
@@ -437,7 +438,7 @@ function buildDefaultState() {
 function stateToQuery() {
   const def = buildDefaultState();
   const parts = [];
-  for (const k in state) {
+  for (const k in def) {
     if (state[k] !== def[k]) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(state[k]));
   }
   return parts.length ? '?' + parts.join('&') : '';
@@ -463,22 +464,18 @@ function poissonSample(lambda) {
 }
 
 function getEnergyLevel(zoneIndex) {
-  if (zoneIndex <= 2) return 0;
-  if (zoneIndex === 3) return 1;
-  if (zoneIndex === 4) return 2;
-  return 3;
+  return Math.min(zoneIndex, ENERGY_LEVELS.length - 1);
 }
 
 function spendEnergy(energyRef, selectedGames) {
-  let earned = 0, rub = 0;
+  let earned = 0;
   while (true) {
     const g = selectedGames.find(x => x.cost > 0 && x.cost <= energyRef.v);
     if (!g) break;
     energyRef.v -= g.cost;
     earned += g.reward;
-    rub += g.rub;
   }
-  return { coins: earned, rub };
+  return { coins: earned };
 }
 
 function simulatePlayer(pKey) {
@@ -488,20 +485,18 @@ function simulatePlayer(pKey) {
   const sess = state[pKey + '_sess'];
   const startDay = state[pKey + '_start'];
   const hasSub = state[pKey + '_sub'];
-  const subCost = hasSub ? (state.subRub || 100) * Math.ceil((actDays - startDay) / 30) : 0;
   const availableDays = Math.max(0, actDays - startDay);
 
   const anchors = ANCHOR_TYPES.map(a => ({
     perDay: (state[pKey + '_' + a.key] || 0) / 7,
     energy: state[a.key],
-    coins: state[a.key + '_coins'] ?? 0,
     rub: state[a.key + '_rub'],
   }));
 
   const selectedGames = [];
   GAMES.forEach(g => {
     if (state[pKey + '_' + g.key]) {
-      selectedGames.push({ cost: state[g.key + '_cost'], reward: state[g.key + '_reward'], rub: state[g.key + '_rub'] });
+      selectedGames.push({ cost: state[g.key + '_cost'], reward: state[g.key + '_reward'] });
     }
   });
   selectedGames.sort((a, b) => (b.cost > 0 ? b.reward / b.cost : 0) - (a.cost > 0 ? a.reward / a.cost : 0));
@@ -511,15 +506,17 @@ function simulatePlayer(pKey) {
   const allZoneDays = [];
   const allRubles = [];
   const allCoinsLeft = [];
-  const coinMult = hasSub ? 2 : 1;
 
   for (let run = 0; run < numRuns; run++) {
-    let energy = 0, coins = 0, rubles = hasSub ? subCost : 0, currentZone = 0;
+    let energy = 0, coins = 0, rubles = 0, currentZone = 0;
     const zoneDays = [];
+    const weeksWithSub = new Set();
 
     for (let day = 0; day < actDays; day++) {
       if (day < startDay) continue;
 
+      const daysFromStart = day - startDay;
+      const weekNum = Math.floor(daysFromStart / 7);
       const lvl = getEnergyLevel(currentZone);
       const cap = state[ENERGY_LEVELS[lvl].key + '_cap'];
       const rph = state[ENERGY_LEVELS[lvl].key + '_rph'];
@@ -537,12 +534,15 @@ function simulatePlayer(pKey) {
       const hPerSess = 24 / todaySess;
       const e = { v: energy };
 
+      if (hasSub && !weeksWithSub.has(weekNum)) {
+        e.v += 2 * cap;
+        weeksWithSub.add(weekNum);
+      }
+
       for (let s = 0; s < todaySess; s++) {
         e.v = Math.min(cap, e.v + rph * hPerSess);
         const sp = spendEnergy(e, selectedGames);
-        const c = sp.coins * coinMult;
-        coins += c;
-        rubles += sp.rub;
+        coins += sp.coins;
       }
 
       for (const a of anchors) {
@@ -551,9 +551,7 @@ function simulatePlayer(pKey) {
           e.v += a.energy;
           rubles += a.rub;
           const sp = spendEnergy(e, selectedGames);
-          const c = (sp.coins + a.coins) * coinMult;
-          coins += c;
-          rubles += sp.rub;
+          coins += sp.coins;
         }
       }
 
@@ -561,7 +559,7 @@ function simulatePlayer(pKey) {
 
       while (currentZone < numZones && coins >= zoneCosts[currentZone]) {
         coins -= zoneCosts[currentZone];
-        zoneDays.push(day - startDay);
+        zoneDays.push(daysFromStart);
         currentZone++;
       }
     }
@@ -572,8 +570,9 @@ function simulatePlayer(pKey) {
     allCoinsLeft.push(coins);
   }
 
-  return aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub, subCost);
+  return aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub);
 }
+
 
 function pct(arr, p) {
   const s = arr.filter(x => x < Infinity).sort((a, b) => a - b);
@@ -589,7 +588,7 @@ function pctAll(arr, p) {
   return s[i];
 }
 
-function aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub, subCost) {
+function aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub) {
   const zones = [];
   for (let z = 0; z < numZones; z++) {
     const days = allZoneDays.map(r => r[z]);
@@ -621,7 +620,7 @@ function aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays
     coinsLeftMedian: pctAll(allCoinsLeft, 50),
     coinsLeftP10: pctAll(allCoinsLeft, 10),
     coinsLeftP90: pctAll(allCoinsLeft, 90),
-    subCost,
+    hasSub,
   };
 }
 
@@ -679,10 +678,6 @@ function renderGameParams() {
         <label>Награда (монеты)</label>
         <input type="number" data-key="${g.key}_reward" value="${state[g.key + '_reward']}" min="0" step="1">
       </div>
-      <div class="field">
-        <label>Выручка (₽)</label>
-        <input type="number" data-key="${g.key}_rub" value="${state[g.key + '_rub']}" min="0" step="1">
-      </div>
       <div style="font-size:0.75rem;color:var(--text2);font-family:var(--mono)">
         ${(state[g.key + '_reward'] / state[g.key + '_cost']).toFixed(2)} м/э
       </div>
@@ -692,7 +687,7 @@ function renderGameParams() {
 
 function renderAnchorParams() {
   const el = document.getElementById('anchorParams');
-  const anchorsHTML = ANCHOR_TYPES.map(a =>
+  el.innerHTML = ANCHOR_TYPES.map(a =>
     `<div style="display:flex;flex-direction:column;gap:4px">
       <span style="font-size:0.8rem;color:var(--text2)">${a.name}</span>
       <div class="field">
@@ -700,23 +695,11 @@ function renderAnchorParams() {
         <input type="number" data-key="${a.key}" value="${state[a.key]}" min="0" step="1">
       </div>
       <div class="field">
-        <label>Монеты</label>
-        <input type="number" data-key="${a.key}_coins" value="${state[a.key + '_coins']}" min="0" step="1">
-      </div>
-      <div class="field">
         <label>Доход (₽)</label>
         <input type="number" data-key="${a.key}_rub" value="${state[a.key + '_rub']}" min="0" step="1">
       </div>
     </div>`
   ).join('');
-  const subHTML = `<div style="display:flex;flex-direction:column;gap:4px">
-    <span style="font-size:0.8rem;color:var(--text2)">Подписка</span>
-    <div class="field">
-      <label>Доход (₽/мес)</label>
-      <input type="number" data-key="subRub" value="${state.subRub}" min="0" step="1">
-    </div>
-  </div>`;
-  el.innerHTML = anchorsHTML + subHTML;
 }
 
 function renderPlayers() {
@@ -760,7 +743,7 @@ function renderPlayers() {
         ${gamesHTML}
         <div class="field">
           <label class="checkbox-row">
-            <input type="checkbox" data-key="${p.key}_sub" ${subChecked}> Подписка (×2 монет)
+            <input type="checkbox" data-key="${p.key}_sub" ${subChecked}> Альфа-Смарт (+2 капа/нед)
           </label>
         </div>
       </div>
@@ -793,7 +776,7 @@ function renderResults() {
     if (!sim) return;
 
     const tbody = document.querySelector(`#table_${p.key} tbody`);
-    const { zones, availableDays, totalP10, totalMedian, totalP90, totalCompletionRate, rubMedian, rubP10, rubP90, coinsLeftMedian, coinsLeftP10, coinsLeftP90, subCost } = sim;
+    const { zones, availableDays, totalP10, totalMedian, totalP90, totalCompletionRate, rubMedian, rubP10, rubP90, coinsLeftMedian, coinsLeftP10, coinsLeftP90, hasSub } = sim;
 
     const zonesCompleted = zones.filter(z => z.fitsInTime).length;
     const progressPct = Math.min(100, (zonesCompleted / zones.length) * 100);
@@ -841,8 +824,8 @@ function renderResults() {
       : `<span style="font-size:0.7rem;color:var(--red)">${zonesCompleted}/${zones.length} зон (${pctDone}%)</span>`;
     const rangeLabel = `<span style="font-size:0.65rem;color:var(--text2)">${fmtD(totalP10)}–${fmtD(totalP90)} дн</span>`;
     const rubLabel = `<span style="font-size:0.7rem;color:var(--green)">${fmtR(rubMedian)}₽</span> <span style="font-size:0.6rem;color:var(--text2)">(${fmtR(rubP10)}–${fmtR(rubP90)})</span>`;
-    const subLabel = state[p.key + '_sub'] && subCost > 0
-      ? `<br><span style="font-size:0.65rem;color:var(--accent)">Подписка: +${fmtR(subCost)}₽</span>`
+    const subLabel = hasSub
+      ? `<br><span style="font-size:0.65rem;color:var(--accent)">Альфа-Смарт: +2 капа/нед</span>`
       : '';
 
     summaryCards.push(`<div class="summary-card">

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Сортировка: яйца</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #2d3a2d;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+        .back-link {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            font-size: 14px;
+            z-index: 10;
+        }
+        .back-link:hover { color: #fff; }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-link">← К играм</a>
+    <canvas id="game"></canvas>
+
+    <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const LEFT_ITEMS = [
+        { type: 'normal', name: 'Обычное яйцо' },
+    ];
+
+    const RIGHT_ITEMS = [
+        { type: 'cracked', name: 'Яйцо с трещиной' },
+        { type: 'scaly', name: 'Чешуйчатое яйцо' },
+    ];
+
+    const GAME_DURATION = 60;
+    const MAX_LIVES = 3;
+    const REVEAL_START = 0.35;
+    const REVEAL_END = 0.9;
+    const FALL_TIME_START = 2.5;
+    const FALL_TIME_END = 1.0;
+    const SPAWN_DELAY_START = 1.2;
+    const SPAWN_DELAY_END = 0.4;
+
+    let W, H;
+
+    function resize() {
+        const maxW = Math.min(window.innerWidth - 20, 420);
+        const maxH = Math.min(window.innerHeight - 20, 720);
+        const ratio = 420 / 720;
+        if (maxW / maxH > ratio) {
+            H = maxH; W = Math.round(H * ratio);
+        } else {
+            W = maxW; H = Math.round(W / ratio);
+        }
+        canvas.width = W;
+        canvas.height = H;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const STATE = { MENU: 0, PLAYING: 1, OVER: 2 };
+
+    let state, score, lives, timeLeft, item, itemY, itemVY, flyDir, flyX, flyAlpha;
+    let spawnTimer, lastTime, combo, flashSide, flashTimer;
+    let shakeX, shakeTimer;
+    let targetSample;
+
+    function progress() { return 1 - timeLeft / GAME_DURATION; }
+    function lerp(a, b, t) { return a + (b - a) * Math.min(1, Math.max(0, t)); }
+
+    function fallTime() { return lerp(FALL_TIME_START, FALL_TIME_END, progress()); }
+    function spawnDelay() { return lerp(SPAWN_DELAY_START, SPAWN_DELAY_END, progress()); }
+
+    function pickItem() {
+        const pool = Math.random() < 0.5 ? LEFT_ITEMS : RIGHT_ITEMS;
+        const cat = pool === LEFT_ITEMS ? 'left' : 'right';
+        const obj = pool[Math.floor(Math.random() * pool.length)];
+        return { type: obj.type, name: obj.name, category: cat };
+    }
+
+    function spawnItem() {
+        item = pickItem();
+        itemY = -0.05;
+        itemVY = 1.0 / fallTime();
+        flyDir = 0;
+        flyX = 0;
+        flyAlpha = 1;
+    }
+
+    function startGame() {
+        state = STATE.PLAYING;
+        score = 0;
+        lives = MAX_LIVES;
+        timeLeft = GAME_DURATION;
+        combo = 0;
+        spawnTimer = 0.5;
+        item = null;
+        flyDir = 0;
+        flashSide = 0;
+        flashTimer = 0;
+        shakeX = 0;
+        shakeTimer = 0;
+        targetSample = RIGHT_ITEMS[Math.floor(Math.random() * RIGHT_ITEMS.length)];
+        lastTime = performance.now();
+    }
+
+    function choose(dir) {
+        if (state !== STATE.PLAYING || !item || flyDir !== 0) return;
+        const correct = (dir === -1 && item.category === 'left') ||
+                        (dir === 1 && item.category === 'right');
+        if (correct) {
+            score++;
+            combo++;
+            flashSide = dir;
+            flashTimer = 0.3;
+        } else {
+            lives--;
+            combo = 0;
+            shakeTimer = 0.3;
+            if (lives <= 0) { state = STATE.OVER; return; }
+        }
+        flyDir = dir;
+    }
+
+    document.addEventListener('keydown', e => {
+        if (state === STATE.MENU && (e.key === 'Enter' || e.key === ' ')) { startGame(); return; }
+        if (state === STATE.OVER && (e.key === 'Enter' || e.key === ' ')) { state = STATE.MENU; return; }
+        if (e.key === 'ArrowLeft') choose(-1);
+        if (e.key === 'ArrowRight') choose(1);
+    });
+
+    let touchStartX = 0, touchStartY = 0;
+    canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        if (state === STATE.MENU) { startGame(); return; }
+        if (state === STATE.OVER) { state = STATE.MENU; return; }
+        const t = e.touches[0];
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
+    }, { passive: false });
+    canvas.addEventListener('touchend', e => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        const dx = t.clientX - touchStartX;
+        if (Math.abs(dx) > 30) choose(dx < 0 ? -1 : 1);
+    }, { passive: false });
+
+    canvas.addEventListener('click', e => {
+        if (state === STATE.MENU) { startGame(); return; }
+        if (state === STATE.OVER) { state = STATE.MENU; return; }
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        if (x < rect.width / 2) choose(-1);
+        else choose(1);
+    });
+
+    function drawRoundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    function drawWoodPlank(x, y, w, h) {
+        ctx.fillStyle = '#8B6914';
+        ctx.strokeStyle = '#5c4510';
+        ctx.lineWidth = 2;
+        drawRoundRect(x, y, w, h, 6);
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    function drawEgg(x, y, size, type, revealPct) {
+        ctx.save();
+        const r = size * 0.5;
+        const scaleX = 0.85;
+        const scaleY = 1.15;
+
+        function doDraw() {
+            ctx.translate(x, y);
+            ctx.scale(scaleX, scaleY);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, r, r * 1.2, 0, 0, Math.PI * 2);
+            ctx.closePath();
+            if (type === 'normal') {
+                ctx.fillStyle = '#f5f5dc';
+                ctx.strokeStyle = '#e8e8c8';
+            } else if (type === 'cracked') {
+                ctx.fillStyle = '#f0e6d2';
+                ctx.strokeStyle = '#d4c4a8';
+            } else {
+                ctx.fillStyle = '#e8e0d0';
+                ctx.strokeStyle = '#c0b090';
+            }
+            ctx.lineWidth = 2;
+            ctx.fill();
+            ctx.stroke();
+            if (type === 'cracked') {
+                ctx.strokeStyle = '#8b7355';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(-r * 0.3, r * 0.2);
+                ctx.lineTo(r * 0.2, -r * 0.1);
+                ctx.moveTo(r * 0.1, r * 0.4);
+                ctx.lineTo(-r * 0.2, r * 0.1);
+                ctx.stroke();
+            } else if (type === 'scaly') {
+                ctx.strokeStyle = 'rgba(139,119,101,0.6)';
+                ctx.lineWidth = 1;
+                for (let i = -1; i <= 1; i++) {
+                    for (let j = -1; j <= 1; j++) {
+                        const u = i * r * 0.35, v = j * r * 0.4;
+                        if (u * u / (r * r) + v * v / (r * 1.2 * r * 1.2) < 0.9) {
+                            ctx.beginPath();
+                            ctx.arc(u, v, r * 0.12, 0, Math.PI * 2);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+        }
+
+        if (revealPct < 1) {
+            ctx.filter = `brightness(0) blur(${(1 - revealPct) * 4}px)`;
+            ctx.globalAlpha = 1;
+            doDraw();
+            ctx.restore();
+            ctx.save();
+            ctx.filter = 'none';
+            ctx.globalAlpha = revealPct;
+        }
+        doDraw();
+        ctx.restore();
+    }
+
+    function drawCircleFrame(x, y, r, highlight) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fill();
+        ctx.strokeStyle = highlight ? '#fff' : '#444';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    }
+
+    function drawBackground() {
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#3d4a3d');
+        grad.addColorStop(0.5, '#2d3a2d');
+        grad.addColorStop(1, '#1e2a1e');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        const cx = W / 2;
+        const cy = H * 0.45;
+        const stackR = W * 0.18;
+
+        const stackTypes = ['normal', 'cracked', 'scaly', 'normal', 'cracked', 'scaly', 'normal'];
+        const stackSize = Math.round(W * 0.1);
+        for (let i = 0; i < 7; i++) {
+            const ox = (i % 3 - 1) * stackSize * 0.6;
+            const oy = -i * stackSize * 0.5;
+            ctx.save();
+            ctx.globalAlpha = 0.4 + (7 - i) * 0.08;
+            drawEgg(cx + ox, cy + oy, stackSize, stackTypes[i], 1);
+            ctx.restore();
+        }
+
+        const leftX = W * 0.28;
+        const rightX = W * 0.72;
+        const circleY = H * 0.5;
+        const circleR = W * 0.14;
+
+        if (flashSide === -1 && flashTimer > 0) {
+            ctx.fillStyle = 'rgba(139, 195, 74, 0.2)';
+            ctx.beginPath();
+            ctx.arc(leftX, circleY, circleR + 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        if (flashSide === 1 && flashTimer > 0) {
+            ctx.fillStyle = 'rgba(76, 175, 80, 0.2)';
+            ctx.beginPath();
+            ctx.arc(rightX, circleY, circleR + 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        drawCircleFrame(leftX, circleY, circleR, item && flyDir === 0);
+        if (targetSample) {
+            drawCircleFrame(rightX, circleY, circleR, false);
+            drawEgg(rightX, circleY, Math.round(circleR * 1.8), targetSample.type, 1);
+        }
+
+        const btnY = H * 0.78;
+        const btnW = W * 0.35;
+        const btnH = H * 0.08;
+        drawWoodPlank(W * 0.12, btnY, btnW, btnH);
+        drawWoodPlank(W - W * 0.12 - btnW, btnY, btnW, btnH);
+
+        ctx.font = `bold ${Math.round(W * 0.12)}px sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('◀', W * 0.12 + btnW / 2, btnY + btnH / 2);
+        ctx.fillText('▶', W - W * 0.12 - btnW / 2, btnY + btnH / 2);
+    }
+
+    function drawUI() {
+        const pad = 12;
+        const topY = 8;
+
+        drawWoodPlank(pad, topY, W * 0.35, H * 0.06);
+        ctx.font = `bold ${Math.round(W * 0.04)}px sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.fillText('SCORE:', pad + 10, topY + H * 0.03);
+        ctx.fillText(`${score}`, pad + 10, topY + H * 0.05);
+
+        if (combo > 1) {
+            ctx.fillStyle = '#ffd740';
+            ctx.fillText(`x${combo}`, pad + 70, topY + H * 0.05);
+        }
+
+        drawWoodPlank(W / 2 - W * 0.12, topY, W * 0.24, H * 0.06);
+        const secs = Math.ceil(timeLeft);
+        ctx.font = `bold ${Math.round(W * 0.05)}px sans-serif`;
+        ctx.fillStyle = timeLeft < 10 ? '#ef5350' : '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText(secs.toFixed(1), W / 2, topY + H * 0.045);
+
+        drawWoodPlank(W - pad - W * 0.1, topY, W * 0.1, H * 0.06);
+        ctx.font = `${Math.round(W * 0.05)}px serif`;
+        ctx.textAlign = 'center';
+        let heartsStr = '';
+        for (let i = 0; i < MAX_LIVES; i++) heartsStr += i < lives ? '❤️' : '🖤';
+        ctx.fillText(heartsStr, W - pad - W * 0.05, topY + H * 0.045);
+
+        const barY = topY + H * 0.065;
+        const barW = W - pad * 2;
+        const barH = 4;
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        drawRoundRect(pad, barY, barW, barH, 2);
+        ctx.fill();
+        const pct = 1 - timeLeft / GAME_DURATION;
+        ctx.fillStyle = '#6b8e23';
+        drawRoundRect(pad, barY, barW * pct, barH, 2);
+        ctx.fill();
+    }
+
+    function drawItem(dt) {
+        if (!item) return;
+
+        const leftX = W * 0.28;
+        const circleY = H * 0.5;
+        const emojiSize = Math.round(W * 0.12);
+        let drawX = leftX + flyX * W * 0.5;
+        let drawY = (itemY * H) || circleY;
+
+        if (flyDir === 0) {
+            drawY = Math.min(itemY * H, circleY);
+        }
+
+        const revealPct = itemY <= REVEAL_START ? 0
+            : Math.min(1, (itemY - REVEAL_START) / (REVEAL_END - REVEAL_START));
+
+        const alpha = flyDir !== 0 ? flyAlpha : 1;
+        ctx.globalAlpha = alpha;
+        drawEgg(drawX, drawY, emojiSize, item.type, revealPct);
+        ctx.globalAlpha = 1;
+    }
+
+    function drawMenu() {
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#3d4a3d');
+        grad.addColorStop(0.5, '#2d3a2d');
+        grad.addColorStop(1, '#1e2a1e');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        drawEgg(W / 2 - W * 0.12, H * 0.22, W * 0.12, 'normal', 1);
+        drawEgg(W / 2, H * 0.25, W * 0.12, 'cracked', 1);
+        drawEgg(W / 2 + W * 0.12, H * 0.22, W * 0.12, 'scaly', 1);
+        ctx.restore();
+
+        ctx.font = `bold ${Math.round(W * 0.07)}px sans-serif`;
+        ctx.fillStyle = '#e8e8e8';
+        ctx.fillText('Сортировка: яйца', W / 2, H * 0.38);
+
+        ctx.font = `${Math.round(W * 0.035)}px sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        const lines = [
+            'Обычные яйца ← влево,',
+            'с трещиной и чешуйчатые → вправо.',
+            '',
+            '⌨️ Стрелки или свайп',
+            '🖱️ Клик по половине экрана',
+        ];
+        lines.forEach((line, i) => {
+            ctx.fillText(line, W / 2, H * 0.48 + i * Math.round(W * 0.05));
+        });
+
+        const btnW = W * 0.5;
+        const btnH = H * 0.07;
+        const btnX = (W - btnW) / 2;
+        const btnY = H * 0.82;
+        drawWoodPlank(btnX, btnY, btnW, btnH);
+
+        ctx.font = `bold ${Math.round(W * 0.05)}px sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText('Играть', W / 2, btnY + btnH / 2 + Math.round(W * 0.015));
+    }
+
+    function drawGameOver() {
+        ctx.fillStyle = 'rgba(30, 42, 30, 0.95)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.font = `${Math.round(W * 0.14)}px serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(lives <= 0 ? '💔' : '🏆', W / 2, H * 0.28);
+
+        ctx.font = `bold ${Math.round(W * 0.065)}px sans-serif`;
+        ctx.fillStyle = '#e8e8e8';
+        ctx.fillText(lives <= 0 ? 'Жизни кончились!' : 'Время вышло!', W / 2, H * 0.40);
+
+        ctx.font = `bold ${Math.round(W * 0.11)}px sans-serif`;
+        ctx.fillStyle = '#ffd740';
+        ctx.fillText(`${score}`, W / 2, H * 0.54);
+
+        ctx.font = `${Math.round(W * 0.038)}px sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText('предметов отсортировано', W / 2, H * 0.60);
+
+        const btnW = W * 0.5;
+        const btnH = H * 0.07;
+        const btnX = (W - btnW) / 2;
+        const btnY = H * 0.75;
+        drawWoodPlank(btnX, btnY, btnW, btnH);
+
+        ctx.font = `bold ${Math.round(W * 0.05)}px sans-serif`;
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.fillText('Ещё раз', W / 2, btnY + btnH / 2 + Math.round(W * 0.015));
+    }
+
+    function update(dt) {
+        if (state !== STATE.PLAYING) return;
+
+        timeLeft -= dt;
+        if (flashTimer > 0) flashTimer -= dt;
+        if (shakeTimer > 0) {
+            shakeTimer -= dt;
+            shakeX = (Math.random() - 0.5) * 8;
+        } else {
+            shakeX = 0;
+        }
+
+        if (timeLeft <= 0) {
+            timeLeft = 0;
+            state = STATE.OVER;
+            return;
+        }
+
+        if (item && flyDir !== 0) {
+            flyX += flyDir * 3 * dt;
+            flyAlpha -= dt * 3;
+            if (flyAlpha <= 0) {
+                item = null;
+                spawnTimer = spawnDelay();
+            }
+            return;
+        }
+
+        if (!item) {
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) spawnItem();
+            return;
+        }
+
+        itemY += itemVY * dt;
+
+        if (itemY > 1.05) {
+            lives--;
+            combo = 0;
+            shakeTimer = 0.3;
+            item = null;
+            spawnTimer = spawnDelay();
+            if (lives <= 0) state = STATE.OVER;
+        }
+    }
+
+    function render(dt) {
+        ctx.save();
+        ctx.translate(shakeX, 0);
+
+        if (state === STATE.MENU) {
+            drawMenu();
+        } else if (state === STATE.PLAYING) {
+            drawBackground();
+            drawItem(dt);
+            drawUI();
+        } else {
+            drawGameOver();
+        }
+
+        ctx.restore();
+    }
+
+    state = STATE.MENU;
+    lastTime = performance.now();
+
+    function gameLoop(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+        update(dt);
+        render(dt);
+        requestAnimationFrame(gameLoop);
+    }
+    requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
