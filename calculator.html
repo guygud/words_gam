@@ -256,12 +256,34 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
   transition: width 0.3s;
 }
 
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.chart-wrap {
+  background: var(--surface2);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.chart-wrap h3 {
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+  color: var(--text2);
+}
+.chart-wrap canvas {
+  width: 100%;
+  height: 220px;
+  display: block;
+}
+
 @media (max-width: 1100px) {
   .players-grid { grid-template-columns: repeat(2, 1fr); }
   .summary-row { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
   .summary-row { grid-template-columns: 1fr; }
+  .charts-row { grid-template-columns: 1fr; }
   .params-grid.cols-6 { grid-template-columns: repeat(3, 1fr); }
   .params-grid.cols-5 { grid-template-columns: repeat(2, 1fr); }
   .params-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
@@ -304,6 +326,24 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 
   <!-- Summary cards -->
   <div class="summary-row" id="summaryRow"></div>
+
+  <!-- Charts -->
+  <section>
+    <h2 class="open" onclick="toggleSection(this)">Графики прогресса</h2>
+    <div class="collapsible-content open">
+      <div class="charts-row">
+        <div class="chart-wrap">
+          <h3>Комнаты (медиана)</h3>
+          <canvas id="chartRooms"></canvas>
+        </div>
+        <div class="chart-wrap">
+          <h3>Предметы (медиана)</h3>
+          <canvas id="chartItems"></canvas>
+        </div>
+      </div>
+      <div id="chartLegend" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:0.75rem;color:var(--text2)"></div>
+    </div>
+  </section>
 
   <!-- Global: Zones -->
   <section>
@@ -351,6 +391,9 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 <script>
 'use strict';
 
+const ROOMS_PER_ZONE = 4;
+const ITEMS_PER_ROOM = 5;
+
 const ZONES = [
   { key: 'z0', name: 'Зона 1', cost: 250 },
   { key: 'z1', name: 'Зона 2', cost: 400 },
@@ -358,6 +401,30 @@ const ZONES = [
   { key: 'z3', name: 'Зона 4', cost: 800 },
   { key: 'z4', name: 'Зона 5', cost: 950 },
 ];
+
+function buildRooms() {
+  const rooms = [];
+  ZONES.forEach((z, zi) => {
+    const zoneCost = state[z.key] ?? z.cost;
+    const roomCost = zoneCost / ROOMS_PER_ZONE;
+    const itemCost = roomCost / ITEMS_PER_ROOM;
+    for (let r = 0; r < ROOMS_PER_ZONE; r++) {
+      rooms.push({
+        zoneIndex: zi,
+        zoneName: z.name,
+        cost: roomCost,
+        itemCosts: Array(ITEMS_PER_ROOM).fill(itemCost),
+      });
+    }
+  });
+  return rooms;
+}
+
+function buildItemCosts() {
+  const costs = [];
+  buildRooms().forEach(room => costs.push(...room.itemCosts));
+  return costs;
+}
 
 const ENERGY_LEVELS = [
   { key: 'e0', label: 'Зона 1 (старт)', cap: 16, regenPerHour: 4.0 },
@@ -501,76 +568,104 @@ function simulatePlayer(pKey) {
   });
   selectedGames.sort((a, b) => (b.cost > 0 ? b.reward / b.cost : 0) - (a.cost > 0 ? a.reward / a.cost : 0));
 
-  const zoneCosts = ZONES.map(z => state[z.key]);
-  const numZones = zoneCosts.length;
+  const itemCosts = buildItemCosts();
+  const numItems = itemCosts.length;
+  const numZones = ZONES.length;
+  const numRooms = buildRooms().length;
   const allZoneDays = [];
   const allRubles = [];
   const allCoinsLeft = [];
+  const allItemsByDay = [];
+  const allRoomsByDay = [];
 
   for (let run = 0; run < numRuns; run++) {
-    let energy = 0, coins = 0, rubles = 0, currentZone = 0;
+    let energy = 0, coins = 0, rubles = 0, itemsPurchased = 0;
     const zoneDays = [];
     const weeksWithSub = new Set();
+    const itemsByDay = [];
+    const roomsByDay = [];
 
     for (let day = 0; day < actDays; day++) {
-      if (day < startDay) continue;
-
-      const daysFromStart = day - startDay;
-      const weekNum = Math.floor(daysFromStart / 7);
+      const daysFromStart = Math.max(0, day - startDay);
+      const roomsCompleted = Math.floor(itemsPurchased / ITEMS_PER_ROOM);
+      const currentZone = Math.min(Math.floor(roomsCompleted / ROOMS_PER_ZONE), numZones - 1);
       const lvl = getEnergyLevel(currentZone);
       const cap = state[ENERGY_LEVELS[lvl].key + '_cap'];
       const rph = state[ENERGY_LEVELS[lvl].key + '_rph'];
       const playChance = Math.min(1, daysPerWeek / 7);
-      const isPlayDay = Math.random() < playChance;
+      const isPlayDay = day >= startDay && Math.random() < playChance;
 
-      if (!isPlayDay) {
+      if (day >= startDay && !isPlayDay) {
         energy = Math.min(cap, energy + rph * 24);
-        continue;
-      }
+      } else if (isPlayDay) {
+        const weekNum = Math.floor(daysFromStart / 7);
+        const base = Math.floor(sess);
+        const frac = sess - base;
+        const todaySess = Math.max(1, base + (Math.random() < frac ? 1 : 0));
+        const hPerSess = 24 / todaySess;
+        const e = { v: energy };
 
-      const base = Math.floor(sess);
-      const frac = sess - base;
-      const todaySess = Math.max(1, base + (Math.random() < frac ? 1 : 0));
-      const hPerSess = 24 / todaySess;
-      const e = { v: energy };
+        if (hasSub && !weeksWithSub.has(weekNum)) {
+          e.v += 2 * cap;
+          weeksWithSub.add(weekNum);
+        }
 
-      if (hasSub && !weeksWithSub.has(weekNum)) {
-        e.v += 2 * cap;
-        weeksWithSub.add(weekNum);
-      }
-
-      for (let s = 0; s < todaySess; s++) {
-        e.v = Math.min(cap, e.v + rph * hPerSess);
-        const sp = spendEnergy(e, selectedGames);
-        coins += sp.coins;
-      }
-
-      for (const a of anchors) {
-        const n = poissonSample(a.perDay);
-        for (let j = 0; j < n; j++) {
-          e.v += a.energy;
-          rubles += a.rub;
+        for (let s = 0; s < todaySess; s++) {
+          e.v = Math.min(cap, e.v + rph * hPerSess);
           const sp = spendEnergy(e, selectedGames);
           coins += sp.coins;
         }
+
+        for (const a of anchors) {
+          const n = poissonSample(a.perDay);
+          for (let j = 0; j < n; j++) {
+            e.v += a.energy;
+            rubles += a.rub;
+            const sp = spendEnergy(e, selectedGames);
+            coins += sp.coins;
+          }
+        }
+
+        energy = e.v;
+
+        while (itemsPurchased < numItems && coins >= itemCosts[itemsPurchased]) {
+          coins -= itemCosts[itemsPurchased];
+          itemsPurchased++;
+          const newRooms = Math.floor(itemsPurchased / ITEMS_PER_ROOM);
+          if (newRooms > zoneDays.length) {
+            zoneDays.push(daysFromStart);
+          }
+        }
       }
 
-      energy = e.v;
-
-      while (currentZone < numZones && coins >= zoneCosts[currentZone]) {
-        coins -= zoneCosts[currentZone];
-        zoneDays.push(daysFromStart);
-        currentZone++;
-      }
+      itemsByDay.push(itemsPurchased);
+      roomsByDay.push(Math.floor(itemsPurchased / ITEMS_PER_ROOM));
     }
 
     while (zoneDays.length < numZones) zoneDays.push(Infinity);
     allZoneDays.push(zoneDays);
     allRubles.push(rubles);
     allCoinsLeft.push(coins);
+    allItemsByDay.push(itemsByDay);
+    allRoomsByDay.push(roomsByDay);
   }
 
-  return aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub);
+  const chartData = buildChartData(allItemsByDay, allRoomsByDay, actDays);
+  return aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub, chartData);
+}
+
+function buildChartData(allItemsByDay, allRoomsByDay, actDays) {
+  const itemsMedian = [];
+  const roomsMedian = [];
+  const numRuns = allItemsByDay.length;
+  for (let d = 0; d < actDays; d++) {
+    const itemsSorted = allItemsByDay.map(r => r[d]).sort((a, b) => a - b);
+    const roomsSorted = allRoomsByDay.map(r => r[d]).sort((a, b) => a - b);
+    const medIdx = Math.min(Math.floor(numRuns * 0.5), numRuns - 1);
+    itemsMedian.push(itemsSorted[medIdx] ?? 0);
+    roomsMedian.push(roomsSorted[medIdx] ?? 0);
+  }
+  return { items: itemsMedian, rooms: roomsMedian, days: actDays };
 }
 
 
@@ -588,7 +683,7 @@ function pctAll(arr, p) {
   return s[i];
 }
 
-function aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub) {
+function aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays, hasSub, chartData) {
   const zones = [];
   for (let z = 0; z < numZones; z++) {
     const days = allZoneDays.map(r => r[z]);
@@ -621,6 +716,7 @@ function aggregate(allZoneDays, allRubles, allCoinsLeft, numZones, availableDays
     coinsLeftP10: pctAll(allCoinsLeft, 10),
     coinsLeftP90: pctAll(allCoinsLeft, 90),
     hasSub,
+    chartData,
   };
 }
 
@@ -630,6 +726,7 @@ function runSimulation() {
   PLAYERS.forEach(p => { simCache[p.key] = simulatePlayer(p.key); });
   const elapsed = (performance.now() - t0).toFixed(0);
   renderResults();
+  renderCharts();
   updateURL();
   showToast(`${state.numRuns} прогонов × ${PLAYERS.length} игрока за ${elapsed} мс`);
 }
@@ -637,12 +734,16 @@ function runSimulation() {
 // ─── Rendering ────────────────────────────────────────────
 function renderZoneParams() {
   const el = document.getElementById('zoneParams');
-  el.innerHTML = ZONES.map(z =>
-    `<div class="field">
-      <label>${z.name}</label>
+  el.innerHTML = ZONES.map((z) => {
+    const zoneCost = state[z.key] ?? z.cost;
+    const roomCost = zoneCost / ROOMS_PER_ZONE;
+    const itemCost = roomCost / ITEMS_PER_ROOM;
+    return `<div class="field">
+      <label>${z.name} (4 комн. × 5 предм.)</label>
       <input type="number" data-key="${z.key}" value="${state[z.key]}" min="0" step="1">
-    </div>`
-  ).join('');
+      <span style="font-size:0.65rem;color:var(--text2)">${zoneCost} м = ${Math.round(roomCost)}/комн, ${Math.round(itemCost)}/предм</span>
+    </div>`;
+  }).join('');
 }
 
 function renderEnergyParams() {
@@ -835,6 +936,84 @@ function renderResults() {
   });
 
   summaryRow.innerHTML = summaryCards.join('');
+}
+
+const CHART_COLORS = ['#4caf80', '#55cccc', '#e0a020', '#e05555'];
+
+function renderCharts() {
+  const roomsCanvas = document.getElementById('chartRooms');
+  const itemsCanvas = document.getElementById('chartItems');
+  if (!roomsCanvas || !itemsCanvas) return;
+
+  const actDays = state.actDays || 90;
+  const numRooms = buildRooms().length;
+  const numItems = numRooms * ITEMS_PER_ROOM;
+
+  function drawChart(canvas, yMax, yLabel, getData) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const w = rect.width, h = rect.height;
+    const pad = { left: 40, right: 12, top: 8, bottom: 28 };
+    const plotW = w - pad.left - pad.right;
+    const plotH = h - pad.top - pad.bottom;
+
+    ctx.fillStyle = 'var(--surface2)';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = 'var(--border)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pad.left, pad.top, plotW, plotH);
+
+    ctx.fillStyle = 'var(--text2)';
+    ctx.font = '10px var(--font)';
+    ctx.textAlign = 'right';
+    ctx.fillText(yLabel, pad.left - 4, pad.top + 10);
+
+    const hasData = PLAYERS.some(p => simCache[p.key]?.chartData);
+    if (!hasData) {
+      ctx.fillStyle = 'var(--text2)';
+      ctx.textAlign = 'center';
+      ctx.fillText('Нажмите «Пересчитать»', pad.left + plotW / 2, pad.top + plotH / 2);
+      return;
+    }
+
+    PLAYERS.forEach((p, pi) => {
+      const data = simCache[p.key]?.chartData?.[getData];
+      if (!data || data.length === 0) return;
+      ctx.strokeStyle = CHART_COLORS[pi];
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < data.length; i++) {
+        const x = pad.left + (i / Math.max(1, actDays - 1)) * plotW;
+        const y = pad.top + plotH - (data[i] / yMax) * plotH;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+
+    ctx.fillStyle = 'var(--text2)';
+    ctx.font = '10px var(--font)';
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 4; i++) {
+      const x = pad.left + (i / 4) * plotW;
+      ctx.fillText(Math.round((i / 4) * actDays).toString(), x, h - 8);
+    }
+  }
+
+  drawChart(roomsCanvas, numRooms, 'комнаты', 'rooms');
+  drawChart(itemsCanvas, numItems, 'предметы', 'items');
+
+  const legEl = document.getElementById('chartLegend');
+  if (legEl) {
+    legEl.innerHTML = PLAYERS.map((p, pi) =>
+      `<span style="color:${CHART_COLORS[pi]}">${p.name}</span>`
+    ).join(' · ');
+  }
 }
 
 function renderGameRatios() {
