@@ -395,11 +395,11 @@ const ROOMS_PER_ZONE = 4;
 const ITEMS_PER_ROOM = 5;
 
 const ZONES = [
-  { key: 'z0', name: 'Зона 1', cost: 450 },
-  { key: 'z1', name: 'Зона 2', cost: 700 },
-  { key: 'z2', name: 'Зона 3', cost: 950 },
-  { key: 'z3', name: 'Зона 4', cost: 1250 },
-  { key: 'z4', name: 'Зона 5', cost: 1650 },
+  { key: 'z0', name: 'Зона 1', cost: 200 },
+  { key: 'z1', name: 'Зона 2', cost: 650 },
+  { key: 'z2', name: 'Зона 3', cost: 1100 },
+  { key: 'z3', name: 'Зона 4', cost: 1700 },
+  { key: 'z4', name: 'Зона 5', cost: 2600 },
 ];
 
 function buildRooms() {
@@ -605,13 +605,15 @@ function simulatePlayer(pKey) {
         const hPerSess = 24 / todaySess;
         const e = { v: energy };
 
+        for (let s = 0; s < todaySess; s++) {
+          e.v = Math.min(cap, e.v + rph * hPerSess);
+          const sp = spendEnergy(e, selectedGames);
+          coins += sp.coins;
+        }
+
         if (hasSub && !weeksWithSub.has(weekNum)) {
           e.v += 2 * cap;
           weeksWithSub.add(weekNum);
-        }
-
-        for (let s = 0; s < todaySess; s++) {
-          e.v = Math.min(cap, e.v + rph * hPerSess);
           const sp = spendEnergy(e, selectedGames);
           coins += sp.coins;
         }
