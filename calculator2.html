@@ -270,6 +270,16 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
         <div>
           <button class="btn primary" onclick="runSimulation()" style="margin-top:16px">Пересчитать</button>
         </div>
+        <div class="field">
+          <label>Резерв конца дня (0–1)</label>
+          <input type="number" data-key="endOfDayReserve" value="0.5" min="0" max="1" step="0.05">
+          <span style="font-size:0.65rem;color:var(--text2)">Доля дохода дня, не тратимая на яйца → идёт в депозит</span>
+        </div>
+        <div class="field">
+          <label>Порог накопления на СО (0–1)</label>
+          <input type="number" data-key="saveThreshold" value="0.8" min="0" max="1" step="0.05">
+          <span style="font-size:0.65rem;color:var(--text2)">Стратегия «Копим на СО»: покупать С-1 только когда монет &lt; порог × цена СО</span>
+        </div>
       </div>
     </div>
   </section>
@@ -366,8 +376,8 @@ const ZONES = [
 // 3 egg categories. itemsPerEgg = guaranteed items (С-1 is probabilistic: 50%).
 const EGG_TYPES = [
   { key: 'e0', name: 'С-1', itemsPerEgg: 0.5, defaultMult: 1.0 },
-  { key: 'e1', name: 'СО',  itemsPerEgg: 1.0, defaultMult: 2.5 },
-  { key: 'e2', name: 'СВ',  itemsPerEgg: 2.0, defaultMult: 6.0 },
+  { key: 'e1', name: 'СО',  itemsPerEgg: 1.0, defaultMult: 2.0 },
+  { key: 'e2', name: 'СВ',  itemsPerEgg: 2.0, defaultMult: 4.0 },
 ];
 
 // Game rewards grow per zone (slower than egg prices, creating affordability squeeze).
@@ -422,6 +432,8 @@ function buildDefaultState() {
   s.baseCap = 12;
   s.maxCap = 24;
   s.dupRate = 0.15; // probability of duplicate per item draw (~2-3 dupes/zone at default)
+  s.saveThreshold = 0.8;  // strategy 2: don't buy С-1 when within this fraction of СО price
+  s.endOfDayReserve = 0.5; // fraction of daily earnings to keep as deposit buffer
   // Streak rates (fraction per day)
   s.streak_1 = 0.10; s.streak_2 = 0.15; s.streak_3 = 0.20;
   s.streak_4 = 0.25; s.streak_5 = 0.35;
@@ -444,6 +456,7 @@ function buildDefaultState() {
     s[p.key + '_start'] = p.startDay;
     s[p.key + '_savings'] = p.savings ? 1 : 0;
     s[p.key + '_depfrac'] = p.depositFrac;
+    s[p.key + '_strategy'] = 0; // 0=greedy, 1=min-cost/item, 2=save-for-premium
     ANCHOR_TYPES.forEach((a, ai) => {
       const found = p.anchorsPerWeek.find(x => x.type === ai);
       s[p.key + '_' + a.key] = found ? found.count : 0;
@@ -471,6 +484,42 @@ function loadFromQuery() {
 
 function updateURL() {
   history.replaceState(null, '', location.pathname + stateToQuery());
+}
+
+// ─── Egg Buying Strategy ─────────────────────────────────
+// Returns egg tier index (0=С-1, 1=СО, 2=СВ) to buy, or -1 (can't afford / hold).
+// coins: spendable budget (after reserve deduction); baseEggCost: zone С-1 price.
+function selectEggTier(coins, baseEggCost, eggMults, strategy, saveThreshold) {
+  if (strategy === 1) {
+    // Min cost per expected item; tiebreak: cheapest first
+    let best = -1, bestCPE = Infinity, bestCost = Infinity;
+    for (let ei = 0; ei < EGG_TYPES.length; ei++) {
+      const cost = baseEggCost * eggMults[ei];
+      if (coins < cost) continue;
+      const cpe = cost / EGG_TYPES[ei].itemsPerEgg;
+      if (cpe < bestCPE - 1e-9 || (Math.abs(cpe - bestCPE) < 1e-9 && cost < bestCost)) {
+        best = ei; bestCPE = cpe; bestCost = cost;
+      }
+    }
+    return best;
+  }
+  if (strategy === 2) {
+    // Save-for-premium: target = СО (tier 1)
+    const targetCost = baseEggCost * eggMults[1];
+    if (coins >= targetCost) {
+      // Can afford СО or better — buy best available
+      for (let ei = EGG_TYPES.length - 1; ei >= 1; ei--)
+        if (coins >= baseEggCost * eggMults[ei]) return ei;
+    }
+    if (coins < targetCost * saveThreshold && coins >= baseEggCost * eggMults[0]) {
+      return 0; // Far from target — buy С-1
+    }
+    return -1; // Within saveThreshold of target — hold
+  }
+  // Strategy 0: greedy (most expensive affordable)
+  for (let ei = EGG_TYPES.length - 1; ei >= 0; ei--)
+    if (coins >= baseEggCost * eggMults[ei]) return ei;
+  return -1;
 }
 
 // ─── Monte Carlo Engine ───────────────────────────────────
@@ -529,6 +578,18 @@ function simulatePlayer2(pKey) {
   const allCoinsLeft = [];
   const allRoomsByDay = [];
   const allAvgTierByDay = []; // median egg class over time
+  // Econ metrics per run
+  const allCoinsEarned = [];
+  const allSpentOnEggs = [];
+  const allDepositedTotal = [];
+  const allEggsByTier = []; // array of [c1,co,cv] counts
+  const allCostPerItem = [];
+  const allDepositShare = []; // fraction of play-days with deposit > 0
+
+  // Strategy params (constant per player simulation)
+  const strategy = Math.round(state[pKey + '_strategy'] || 0);
+  const saveThreshold = state.saveThreshold ?? 0.8;
+  const endOfDayReserve = state.endOfDayReserve ?? 0.5;
 
   for (let run = 0; run < numRuns; run++) {
     let dailyCap = baseCap;
@@ -539,11 +600,19 @@ function simulatePlayer2(pKey) {
     let totalTickets = 0;
     let currentZone = 0;
     let uniqueItemsInZone = 0; // unique items collected (0–15)
-    let dupItemsInZone = 0;    // duplicates collected after 15 unique
+    let dupItemsInZone = 0;    // duplicates collected
     let totalEggTierSum = 0;   // running sum of tier index for avg
     let totalEggsBought = 0;
     let streak = 0;
     let lastPlayDay = -2;
+    // Econ tracking
+    let runCoinsEarned = 0;
+    let runSpentOnEggs = 0;
+    let runDepositedTotal = 0;
+    let runEggsByTier = [0, 0, 0];
+    let runItemsReceived = 0;
+    let runDepositDays = 0;
+    let runPlayDays = 0;
     const zoneDays = [];
     const roomsByDay = [];
     const avgTierByDay = [];
@@ -592,11 +661,56 @@ function simulatePlayer2(pKey) {
           }
         }
 
-        // Savings: realistic model — deposit reduces spending budget, dividends are bonus on top
-        const depositIn = (usesSavings && depositFrac > 0) ? coinsEarned * depositFrac : 0;
-        savingsDeposit += depositIn;
-        let spendable = coinsEarned - depositIn;
-        if (usesSavings && savingsDeposit > 0) {
+        // Step 1: add earnings to coin pool
+        runCoinsEarned += coinsEarned;
+        runPlayDays++;
+        const reserveCoins = coinsEarned * endOfDayReserve;
+        coins += coinsEarned;
+
+        // Step 2: buy eggs using chosen strategy, stop when coins <= reserve or strategy holds
+        while (currentZone < ZONES.length) {
+          const baseEggCost = state[ZONES[currentZone].key] || ZONES[currentZone].eggCost;
+          const spendable = coins - reserveCoins;
+          const ei = selectEggTier(spendable, baseEggCost, eggMults, strategy, saveThreshold);
+          if (ei < 0) break;
+
+          const cost = baseEggCost * eggMults[ei];
+          coins -= cost;
+          runSpentOnEggs += cost;
+          totalEggsBought++;
+          totalEggTierSum += ei;
+          runEggsByTier[ei]++;
+
+          // Items drawn from this egg
+          const newItems = (ei === 0) ? (Math.random() < 0.5 ? 1 : 0) : EGG_TYPES[ei].itemsPerEgg;
+          runItemsReceived += newItems;
+
+          // Distribute items: each has dupRate chance of being a duplicate
+          for (let it = 0; it < newItems; it++) {
+            if (uniqueItemsInZone < itemsNeeded && Math.random() >= dupRate) {
+              uniqueItemsInZone++;
+              if (uniqueItemsInZone % ITEMS_PER_ROOM === 0) {
+                totalTickets += TICKETS_PER_ROOM; // room complete
+              }
+            } else {
+              dupItemsInZone++;
+              totalTickets += 1; // duplicate → 1 ticket
+            }
+          }
+
+          // Zone complete: all 15 unique items collected
+          if (uniqueItemsInZone >= itemsNeeded) {
+            zoneDays.push(daysFromStart);
+            currentZone++;
+            uniqueItemsInZone = 0;
+            dupItemsInZone = 0;
+            dividendsThisZone = 0;
+          }
+        }
+
+        // Step 3: dividends on OLD deposit (before today's top-up) — only if 2+ sessions
+        const canClaimDividends = (sessionsPerDay >= 2);
+        if (usesSavings && savingsDeposit > 0 && canClaimDividends) {
           const rate = streakRates[streak - 1] || 0.10;
           const eggCostNow = state[ZONES[zi].key] || ZONES[zi].eggCost;
           const maxDivs = 5 * eggCostNow * (state['e2_mult'] ?? EGG_TYPES[2].defaultMult);
@@ -604,61 +718,17 @@ function simulatePlayer2(pKey) {
             const divEarned = Math.min(savingsDeposit * rate, maxDivs - dividendsThisZone);
             dividendsThisZone += divEarned;
             totalDividends += divEarned;
-            spendable += divEarned;
+            coins += divEarned;
           }
         }
 
-        coins += spendable;
-
-        // Greedy egg buying: try СВ → СО → С-1 each iteration
-        let bought = true;
-        while (bought && currentZone < ZONES.length) {
-          bought = false;
-          const baseEggCost = state[ZONES[currentZone].key] || ZONES[currentZone].eggCost;
-
-          // Recalc zone-aware rewards after possible zone change
-          const curZi = Math.min(currentZone, ZONES.length - 1);
-
-          for (let ei = EGG_TYPES.length - 1; ei >= 0; ei--) {
-            const cost = baseEggCost * eggMults[ei];
-            if (coins < cost) continue;
-
-            coins -= cost;
-            bought = true;
-            totalEggsBought++;
-            totalEggTierSum += ei;
-
-            // Items drawn from this egg
-            let newItems;
-            if (ei === 0) {
-              newItems = Math.random() < 0.5 ? 1 : 0; // С-1: 50% chance
-            } else {
-              newItems = EGG_TYPES[ei].itemsPerEgg; // СО=1, СВ=2
-            }
-
-                            // Distribute items: each item has dupRate chance of being a duplicate
-                            for (let it = 0; it < newItems; it++) {
-                              if (uniqueItemsInZone < itemsNeeded && Math.random() >= dupRate) {
-                                uniqueItemsInZone++;
-                                if (uniqueItemsInZone % ITEMS_PER_ROOM === 0) {
-                                  totalTickets += TICKETS_PER_ROOM; // room complete
-                                }
-                              } else {
-                                dupItemsInZone++;
-                                totalTickets += 1; // duplicate → 1 ticket
-                              }
-                            }
-
-                            // Zone complete: all 15 unique items collected
-                            if (uniqueItemsInZone >= itemsNeeded) {
-              zoneDays.push(daysFromStart);
-              currentZone++;
-              uniqueItemsInZone = 0;
-              dupItemsInZone = 0;
-              dividendsThisZone = 0;
-            }
-            break; // bought one egg, restart outer loop
-          }
+        // Step 4: deposit fraction of end-of-day remainder
+        if (usesSavings && depositFrac > 0 && coins > 0) {
+          const depositIn = coins * depositFrac;
+          savingsDeposit += depositIn;
+          runDepositedTotal += depositIn;
+          coins -= depositIn;
+          runDepositDays++;
         }
       }
 
@@ -677,11 +747,19 @@ function simulatePlayer2(pKey) {
     allCoinsLeft.push(coins);
     allRoomsByDay.push(roomsByDay);
     allAvgTierByDay.push(avgTierByDay);
+    allCoinsEarned.push(runCoinsEarned);
+    allSpentOnEggs.push(runSpentOnEggs);
+    allDepositedTotal.push(runDepositedTotal);
+    allEggsByTier.push(runEggsByTier);
+    allCostPerItem.push(runItemsReceived > 0 ? runSpentOnEggs / runItemsReceived : 0);
+    allDepositShare.push(runPlayDays > 0 ? runDepositDays / runPlayDays : 0);
   }
 
   const chartData = buildChartData2(allRoomsByDay, allAvgTierByDay, actDays);
   return aggregate2(allZoneDays, allTotalTickets, allTotalDividends, allCoinsLeft,
-                    availableDays, usesSavings, chartData, numRuns);
+                    availableDays, usesSavings, chartData, numRuns,
+                    { allCoinsEarned, allSpentOnEggs, allDepositedTotal,
+                      allEggsByTier, allCostPerItem, allDepositShare });
 }
 
 function buildChartData2(allRoomsByDay, allAvgTierByDay, actDays) {
@@ -699,7 +777,7 @@ function buildChartData2(allRoomsByDay, allAvgTierByDay, actDays) {
 }
 
 function aggregate2(allZoneDays, allTickets, allDividends, allCoins,
-                    availableDays, usesSavings, chartData, numRuns) {
+                    availableDays, usesSavings, chartData, numRuns, econ) {
   const zones = [];
   for (let z = 0; z < ZONES.length; z++) {
     const days = allZoneDays.map(r => r[z]);
@@ -717,6 +795,19 @@ function aggregate2(allZoneDays, allTickets, allDividends, allCoins,
 
   const totals = allZoneDays.map(r => r[ZONES.length - 1]);
 
+  // Econ metrics aggregation
+  const econOut = {};
+  if (econ) {
+    econOut.coinsEarnedMedian   = pctAll(econ.allCoinsEarned, 50);
+    econOut.spentOnEggsMedian   = pctAll(econ.allSpentOnEggs, 50);
+    econOut.depositedMedian     = pctAll(econ.allDepositedTotal, 50);
+    econOut.costPerItemMedian   = pctAll(econ.allCostPerItem, 50);
+    econOut.depositShareMedian  = pctAll(econ.allDepositShare, 50);
+    econOut.eggsC1Median  = pctAll(econ.allEggsByTier.map(t => t[0]), 50);
+    econOut.eggsCOMedian  = pctAll(econ.allEggsByTier.map(t => t[1]), 50);
+    econOut.eggsCVMedian  = pctAll(econ.allEggsByTier.map(t => t[2]), 50);
+  }
+
   return {
     zones,
     availableDays,
@@ -732,6 +823,7 @@ function aggregate2(allZoneDays, allTickets, allDividends, allCoins,
     coinsLeftMedian: pctAll(allCoins, 50),
     usesSavings,
     chartData,
+    ...econOut,
   };
 }
 
@@ -792,21 +884,27 @@ function renderEggCategoryParams() {
 
   const tierCols = EGG_TYPES.map((e, ei) => {
     const mult = state[e.key + '_mult'] ?? e.defaultMult;
-    const priceZ0 = (z0cost * mult).toFixed(1);
+    const priceZ0 = z0cost * mult;
+    const cpeZ0 = priceZ0 / e.itemsPerEgg;
     const isEditable = ei > 0;
     return `<div style="flex:1;min-width:160px">
       <div style="font-size:0.85rem;font-weight:600;margin-bottom:6px;color:var(--text)">${e.name}
-        <span style="font-size:0.7rem;font-weight:400;color:var(--text2)">× ${mult.toFixed(1)} (=${priceZ0}м в з1)</span>
+        <span style="font-size:0.7rem;font-weight:400;color:var(--text2)">× ${mult.toFixed(1)} (=${priceZ0.toFixed(0)}м в з1)</span>
       </div>
-      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:2px">
         ${ei === 0 ? '50% шанс предмета' : ei === 1 ? '1 предмет гарантирован' : '2 предмета гарантированы'}
+      </div>
+      <div style="font-size:0.72rem;color:var(--accent);margin-bottom:4px">
+        ${cpeZ0.toFixed(1)} м/предмет в з1
       </div>
       ${isEditable ? `<div class="field"><label>Мультипликатор цены</label>
         <input type="number" data-key="${e.key}_mult" value="${mult}" min="1" step="0.1"></div>` : ''}
       <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">
         Цены по зонам: ${ZONES.map((z, zi) => {
           const base = state[z.key] || z.eggCost;
-          return `з${zi+1}: ${(base * mult).toFixed(0)}м`;
+          const price = base * mult;
+          const cpe = price / e.itemsPerEgg;
+          return `з${zi+1}: ${price.toFixed(0)}м (${cpe.toFixed(1)}м/пр)`;
         }).join(' · ')}
       </div>
     </div>`;
@@ -893,8 +991,8 @@ function renderSavingsParams() {
   }).join(' · ');
   el.innerHTML = `
     <div style="margin-bottom:10px;font-size:0.8rem;color:var(--text2)">
-      <b style="color:var(--text)">Реалистичная модель:</b> часть монет уходит на депозит и <b>недоступна</b> для покупки яиц.
-      Дивиденды начисляются на тело депозита и приходят <b>бонусом сверху</b>.
+      <b style="color:var(--text)">Модель «конец дня»:</b> игрок покупает яйца, затем депонирует долю <em>остатка</em> монет.<br>
+      Дивиденды начисляются на вчерашний депозит и доступны только при <b>2+ сессиях/день</b> (12ч цикл).<br>
       Ставка растёт при ежедневных заходах. Пропуск — откат на шаг назад.<br>
       <span style="color:#b88add">Лимит дивидендов/зону = 5 × цена СВ:</span> ${capHints}
     </div>
@@ -925,6 +1023,12 @@ function renderPlayers() {
         </label></div>
         <div class="field"><label>Доля монет на депозит</label>
           <input type="number" data-key="${p.key}_depfrac" value="${state[p.key + '_depfrac']}" min="0" max="1" step="0.05"></div>
+        <div class="field"><label>Стратегия покупки</label>
+          <select data-key="${p.key}_strategy">
+            <option value="0" ${(state[p.key + '_strategy'] || 0) === 0 ? 'selected' : ''}>Жадный (дорогое доступное)</option>
+            <option value="1" ${(state[p.key + '_strategy'] || 0) === 1 ? 'selected' : ''}>Мин. цена/предмет</option>
+            <option value="2" ${(state[p.key + '_strategy'] || 0) === 2 ? 'selected' : ''}>Копим на СО</option>
+          </select></div>
       </div>
       <div class="progress-bar-wrap">
         <div class="progress-bar-fill" id="bar_${p.key}"></div>
@@ -956,7 +1060,10 @@ function renderResults() {
     if (!sim) return;
     const { zones, availableDays, totalP10, totalMedian, totalP90,
             totalCompletionRate, ticketsMedian, ticketsP10, ticketsP90,
-            dividendsMedian, dividendsP90, coinsLeftMedian, usesSavings } = sim;
+            dividendsMedian, dividendsP90, coinsLeftMedian, usesSavings,
+            coinsEarnedMedian, spentOnEggsMedian, depositedMedian,
+            eggsC1Median, eggsCOMedian, eggsCVMedian,
+            costPerItemMedian, depositShareMedian } = sim;
 
     const zonesCompleted = zones.filter(z => z.fitsInTime).length;
     const progressPct = Math.min(100, (zonesCompleted / zones.length) * 100);
@@ -997,6 +1104,24 @@ function renderResults() {
       <td>Дивиденды</td><td></td><td></td>
       <td><b>${fmtR(dividendsMedian)}</b>м</td>
       <td style="font-size:0.65rem">(до ${fmtR(dividendsP90)})</td><td></td>
+    </tr>` : '') + (coinsEarnedMedian != null ? `
+    <tr style="font-weight:normal;font-size:0.68rem;color:var(--text2);border-top:1px dashed var(--border)">
+      <td colspan="6" style="padding-top:4px">
+        <span style="color:var(--text)">Монеты:</span>
+        заработано <b>${fmtR(coinsEarnedMedian)}</b> ·
+        на яйца <b>${fmtR(spentOnEggsMedian)}</b> ·
+        депозит <b>${fmtR(depositedMedian)}</b>
+      </td>
+    </tr>
+    <tr style="font-weight:normal;font-size:0.68rem;color:var(--text2)">
+      <td colspan="6">
+        <span style="color:var(--text)">Яйца:</span>
+        С-1 <b>${fmtR(eggsC1Median)}</b> ·
+        СО <b>${fmtR(eggsCOMedian)}</b> ·
+        СВ <b>${fmtR(eggsCVMedian)}</b> ·
+        ст/предм <b style="color:var(--accent)">${costPerItemMedian != null ? costPerItemMedian.toFixed(1) : '—'}м</b>
+        ${depositShareMedian != null ? `· депозит <b style="color:#b88add">${(depositShareMedian*100).toFixed(0)}%</b> дней` : ''}
+      </td>
     </tr>` : '');
 
     const startDay = state[p.key + '_start'];
