@@ -285,8 +285,8 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
           <canvas id="chartRooms"></canvas>
         </div>
         <div class="chart-wrap">
-          <h3>Билеты (медиана)</h3>
-          <canvas id="chartTickets"></canvas>
+          <h3>Средний класс яйца (медиана) — гипотеза: сберсчёт → выше класс</h3>
+          <canvas id="chartTier"></canvas>
         </div>
       </div>
       <div id="chartLegend" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:0.75rem;color:var(--text2)"></div>
@@ -294,9 +294,23 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
   </section>
 
   <section>
-    <h2 class="open" onclick="toggleSection(this)">Яйца: стоимость и структура (5 зон × 3 комнаты × 5 предметов)</h2>
+    <h2 class="open" onclick="toggleSection(this)">Яйца: базовая цена С-1 по зонам (5 зон × 3 комнаты × 5 предметов)</h2>
     <div class="collapsible-content open">
       <div class="params-grid cols-6" id="zoneParams"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="open" onclick="toggleSection(this)">Категории яиц (мультипликатор от базовой цены С-1)</h2>
+    <div class="collapsible-content open">
+      <div id="eggCategoryParams"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="open" onclick="toggleSection(this)">Награды мини-игр по зонам</h2>
+    <div class="collapsible-content open">
+      <div id="gameParams"></div>
     </div>
   </section>
 
@@ -304,13 +318,6 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
     <h2 onclick="toggleSection(this)">Энергия</h2>
     <div class="collapsible-content">
       <div class="params-grid cols-4" id="energyParams"></div>
-    </div>
-  </section>
-
-  <section>
-    <h2 onclick="toggleSection(this)">Мини-игры</h2>
-    <div class="collapsible-content">
-      <div class="params-grid cols-4" id="gameParams"></div>
     </div>
   </section>
 
@@ -346,8 +353,8 @@ const ITEMS_PER_ROOM = 5;
 const TICKETS_PER_ROOM = 5;
 const TOTAL_ROOMS = 5 * ROOMS_PER_ZONE; // 15
 
-// Costs calibrated so total egg spend ≈ 1940 coins:
-// Zone 1 ≈ 1 calendar day (fast hook), Zone 5 ≈ 8+ active days (needs savings)
+// Base (С-1) egg cost per zone. С-1 gives 50% item chance.
+// Premium eggs (СО/СВ) are price-multiplied — savings account enables buying them.
 const ZONES = [
   { key: 'z0', name: 'Зона 1', eggCost: 4  },
   { key: 'z1', name: 'Зона 2', eggCost: 8  },
@@ -356,10 +363,19 @@ const ZONES = [
   { key: 'z4', name: 'Зона 5', eggCost: 51 },
 ];
 
-// OTK reward=22 calibrated so Вовлечённый finishes in ~30 days, Невовлечённый in ~65 days
+// 3 egg categories. itemsPerEgg = guaranteed items (С-1 is probabilistic: 50%).
+const EGG_TYPES = [
+  { key: 'e0', name: 'С-1', itemsPerEgg: 0.5, defaultMult: 1.0 },
+  { key: 'e1', name: 'СО',  itemsPerEgg: 1.0, defaultMult: 2.5 },
+  { key: 'e2', name: 'СВ',  itemsPerEgg: 2.0, defaultMult: 6.0 },
+];
+
+// Game rewards grow per zone (slower than egg prices, creating affordability squeeze).
 const GAMES = [
-  { key: 'gA', name: 'ОТК',       energyCost: 4, reward: 22, successRate: 0.75, hasSuccess: true },
-  { key: 'gB', name: 'СловоЦвет', energyCost: 1, coinsPerEnergy: 3.0, hasSuccess: false },
+  { key: 'gA', name: 'ОТК',       energyCost: 4, successRate: 0.75, hasSuccess: true,
+    defaultRewards: [22, 26, 30, 34, 38] },
+  { key: 'gB', name: 'СловоЦвет', energyCost: 1, hasSuccess: false,
+    defaultRewards: [3.0, 3.5, 4.0, 4.5, 5.0] },
 ];
 
 const ANCHOR_TYPES = [
@@ -411,10 +427,12 @@ function buildDefaultState() {
   s.streak_4 = 0.25; s.streak_5 = 0.35;
 
   ZONES.forEach(z => s[z.key] = z.eggCost);
+  // Egg tier price multipliers (e0 always 1.0, only e1/e2 are editable)
+  EGG_TYPES.forEach(e => { s[e.key + '_mult'] = e.defaultMult; });
   GAMES.forEach(g => {
     s[g.key + '_cost'] = g.energyCost;
-    s[g.key + '_reward'] = g.reward ?? g.coinsPerEnergy;
     if (g.hasSuccess) s[g.key + '_success'] = g.successRate;
+    ZONES.forEach((z, zi) => { s[g.key + '_reward_z' + zi] = g.defaultRewards[zi]; });
   });
   ANCHOR_TYPES.forEach(a => {
     s[a.key + '_coins'] = a.coins;
@@ -487,7 +505,7 @@ function simulatePlayer2(pKey) {
   const baseCap = state.baseCap || 12;
   const maxCap = state.maxCap || 24;
   const dupsPerZone = Math.max(0, Math.round(state.dupsPerZone || 3));
-  const eggsPerZone = ITEMS_PER_ROOM * ROOMS_PER_ZONE + dupsPerZone;
+  const itemsNeeded = ITEMS_PER_ROOM * ROOMS_PER_ZONE; // 15 unique items to fill a zone
 
   const anchors = ANCHOR_TYPES.map(a => ({
     perDay: (state[pKey + '_' + a.key] || 0) / 7,
@@ -496,9 +514,10 @@ function simulatePlayer2(pKey) {
   }));
 
   const otkCost = state['gA_cost'] || 4;
-  const otkReward = state['gA_reward'] || 30;
   const otkSuccess = state['gA_success'] || 0.75;
-  const wordCpe = state['gB_reward'] || 3.0; // coins per energy for word game
+
+  // Egg tier multipliers (e0 is always 1.0)
+  const eggMults = EGG_TYPES.map(e => state[e.key + '_mult'] ?? e.defaultMult);
 
   const streakRates = [
     state.streak_1, state.streak_2, state.streak_3, state.streak_4, state.streak_5,
@@ -509,7 +528,7 @@ function simulatePlayer2(pKey) {
   const allTotalDividends = [];
   const allCoinsLeft = [];
   const allRoomsByDay = [];
-  const allTicketsByDay = [];
+  const allAvgTierByDay = []; // median egg class over time
 
   for (let run = 0; run < numRuns; run++) {
     let dailyCap = baseCap;
@@ -519,17 +538,20 @@ function simulatePlayer2(pKey) {
     let totalDividends = 0;
     let totalTickets = 0;
     let currentZone = 0;
-    let eggsInZone = 0;
+    let uniqueItemsInZone = 0; // unique items collected (0–15)
+    let dupItemsInZone = 0;    // duplicates collected after 15 unique
+    let totalEggTierSum = 0;   // running sum of tier index for avg
+    let totalEggsBought = 0;
     let streak = 0;
     let lastPlayDay = -2;
     const zoneDays = [];
     const roomsByDay = [];
-    const ticketsByDay = [];
+    const avgTierByDay = [];
 
     for (let day = 0; day < actDays; day++) {
       if (day < startDay) {
         roomsByDay.push(0);
-        ticketsByDay.push(0);
+        avgTierByDay.push(0);
         continue;
       }
 
@@ -541,6 +563,11 @@ function simulatePlayer2(pKey) {
         if (day === lastPlayDay + 1) streak = Math.min(streak + 1, 5);
         else streak = 1;
         lastPlayDay = day;
+
+        // Zone-aware rewards (grow per zone, slower than egg prices)
+        const zi = Math.min(currentZone, ZONES.length - 1);
+        const otkReward = state['gA_reward_z' + zi] ?? GAMES[0].defaultRewards[zi];
+        const wordCpe   = state['gB_reward_z' + zi] ?? GAMES[1].defaultRewards[zi];
 
         let energy = dailyCap;
 
@@ -562,64 +589,83 @@ function simulatePlayer2(pKey) {
           }
         }
 
-        // Savings: deposit is a "shadow" balance that grows from earnings but does NOT
-        // reduce the egg-buying budget (mirrors real-money savings → game rewards model).
-        // Dividends are BONUS coins added on top of regular earnings.
+        // Savings: deposit grows as shadow balance; dividends are bonus coins on top
         let spendable = coinsEarned;
         if (usesSavings && depositFrac > 0) {
-          // Deposit grows independently (doesn't reduce spendable)
           savingsDeposit += coinsEarned * depositFrac;
-
-          // Apply daily interest on accumulated deposit, capped per zone
           if (savingsDeposit > 0) {
             const rate = streakRates[streak - 1] || 0.10;
-            const eggCostNow = state[ZONES[Math.min(currentZone, ZONES.length - 1)].key] ||
-                               ZONES[Math.min(currentZone, ZONES.length - 1)].eggCost;
-            const maxDivs = 5 * eggCostNow * ROOMS_PER_ZONE; // generous cap per zone
+            const eggCostNow = state[ZONES[zi].key] || ZONES[zi].eggCost;
+            const maxDivs = 5 * eggCostNow * ROOMS_PER_ZONE;
             if (dividendsThisZone < maxDivs) {
               const divEarned = Math.min(savingsDeposit * rate, maxDivs - dividendsThisZone);
               dividendsThisZone += divEarned;
               totalDividends += divEarned;
-              spendable += divEarned; // bonus coins on top of normal earnings
+              spendable += divEarned;
             }
           }
         }
 
         coins += spendable;
 
-        // Buy eggs
-        while (currentZone < ZONES.length) {
-          const eggCost = state[ZONES[currentZone].key] || ZONES[currentZone].eggCost;
-          if (coins < eggCost) break;
+        // Greedy egg buying: try СВ → СО → С-1 each iteration
+        let bought = true;
+        while (bought && currentZone < ZONES.length) {
+          bought = false;
+          const baseEggCost = state[ZONES[currentZone].key] || ZONES[currentZone].eggCost;
 
-          coins -= eggCost;
-          eggsInZone++;
-          const itemsInZone = Math.min(eggsInZone, ITEMS_PER_ROOM * ROOMS_PER_ZONE);
+          // Recalc zone-aware rewards after possible zone change
+          const curZi = Math.min(currentZone, ZONES.length - 1);
 
-          if (eggsInZone <= ITEMS_PER_ROOM * ROOMS_PER_ZONE) {
-            if (itemsInZone % ITEMS_PER_ROOM === 0) {
-              totalTickets += TICKETS_PER_ROOM;
+          for (let ei = EGG_TYPES.length - 1; ei >= 0; ei--) {
+            const cost = baseEggCost * eggMults[ei];
+            if (coins < cost) continue;
+
+            coins -= cost;
+            bought = true;
+            totalEggsBought++;
+            totalEggTierSum += ei;
+
+            // Items drawn from this egg
+            let newItems;
+            if (ei === 0) {
+              newItems = Math.random() < 0.5 ? 1 : 0; // С-1: 50% chance
+            } else {
+              newItems = EGG_TYPES[ei].itemsPerEgg; // СО=1, СВ=2
             }
-          } else {
-            totalTickets += 1; // duplicate → 1 ticket
-          }
 
-          if (eggsInZone >= eggsPerZone) {
-            zoneDays.push(daysFromStart);
-            currentZone++;
-            eggsInZone = 0;
-            dividendsThisZone = 0;
+            // Distribute items: unique first, rest are duplicates
+            for (let it = 0; it < newItems; it++) {
+              if (uniqueItemsInZone < itemsNeeded) {
+                uniqueItemsInZone++;
+                if (uniqueItemsInZone % ITEMS_PER_ROOM === 0) {
+                  totalTickets += TICKETS_PER_ROOM; // room complete
+                }
+              } else {
+                dupItemsInZone++;
+                totalTickets += 1; // duplicate → 1 ticket
+              }
+            }
+
+            // Zone complete: all 15 items + enough duplicates
+            if (uniqueItemsInZone >= itemsNeeded && dupItemsInZone >= dupsPerZone) {
+              zoneDays.push(daysFromStart);
+              currentZone++;
+              uniqueItemsInZone = 0;
+              dupItemsInZone = 0;
+              dividendsThisZone = 0;
+            }
+            break; // bought one egg, restart outer loop
           }
         }
       }
 
       const roomsDone = Math.min(
-        currentZone * ROOMS_PER_ZONE +
-          Math.floor(Math.min(eggsInZone, ITEMS_PER_ROOM * ROOMS_PER_ZONE) / ITEMS_PER_ROOM),
+        currentZone * ROOMS_PER_ZONE + Math.floor(uniqueItemsInZone / ITEMS_PER_ROOM),
         TOTAL_ROOMS
       );
       roomsByDay.push(roomsDone);
-      ticketsByDay.push(totalTickets);
+      avgTierByDay.push(totalEggsBought > 0 ? totalEggTierSum / totalEggsBought : 0);
     }
 
     while (zoneDays.length < ZONES.length) zoneDays.push(Infinity);
@@ -628,26 +674,26 @@ function simulatePlayer2(pKey) {
     allTotalDividends.push(totalDividends);
     allCoinsLeft.push(coins);
     allRoomsByDay.push(roomsByDay);
-    allTicketsByDay.push(ticketsByDay);
+    allAvgTierByDay.push(avgTierByDay);
   }
 
-  const chartData = buildChartData2(allRoomsByDay, allTicketsByDay, actDays);
+  const chartData = buildChartData2(allRoomsByDay, allAvgTierByDay, actDays);
   return aggregate2(allZoneDays, allTotalTickets, allTotalDividends, allCoinsLeft,
                     availableDays, usesSavings, chartData, numRuns);
 }
 
-function buildChartData2(allRoomsByDay, allTicketsByDay, actDays) {
+function buildChartData2(allRoomsByDay, allAvgTierByDay, actDays) {
   const roomsMedian = [];
-  const ticketsMedian = [];
+  const tierMedian = [];
   const n = allRoomsByDay.length;
   for (let d = 0; d < actDays; d++) {
     const rSorted = allRoomsByDay.map(r => r[d]).sort((a, b) => a - b);
-    const tSorted = allTicketsByDay.map(r => r[d]).sort((a, b) => a - b);
+    const tSorted = allAvgTierByDay.map(r => r[d]).sort((a, b) => a - b);
     const mi = Math.min(Math.floor(n * 0.5), n - 1);
     roomsMedian.push(rSorted[mi] ?? 0);
-    ticketsMedian.push(tSorted[mi] ?? 0);
+    tierMedian.push(tSorted[mi] ?? 0);
   }
-  return { rooms: roomsMedian, tickets: ticketsMedian };
+  return { rooms: roomsMedian, tier: tierMedian };
 }
 
 function aggregate2(allZoneDays, allTickets, allDividends, allCoins,
@@ -734,29 +780,80 @@ function renderEnergyParams() {
     </div>`;
 }
 
+function renderEggCategoryParams() {
+  const el = document.getElementById('eggCategoryParams');
+  const z0cost = state.z0 || 4;
+
+  const tierCols = EGG_TYPES.map((e, ei) => {
+    const mult = state[e.key + '_mult'] ?? e.defaultMult;
+    const priceZ0 = (z0cost * mult).toFixed(1);
+    const isEditable = ei > 0;
+    return `<div style="flex:1;min-width:160px">
+      <div style="font-size:0.85rem;font-weight:600;margin-bottom:6px;color:var(--text)">${e.name}
+        <span style="font-size:0.7rem;font-weight:400;color:var(--text2)">× ${mult.toFixed(1)} (=${priceZ0}м в з1)</span>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:4px">
+        ${ei === 0 ? '50% шанс предмета' : ei === 1 ? '1 предмет гарантирован' : '2 предмета гарантированы'}
+      </div>
+      ${isEditable ? `<div class="field"><label>Мультипликатор цены</label>
+        <input type="number" data-key="${e.key}_mult" value="${mult}" min="1" step="0.1"></div>` : ''}
+      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">
+        Цены по зонам: ${ZONES.map((z, zi) => {
+          const base = state[z.key] || z.eggCost;
+          return `з${zi+1}: ${(base * mult).toFixed(0)}м`;
+        }).join(' · ')}
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="font-size:0.8rem;color:var(--text2);margin-bottom:10px">
+      Жадная стратегия: игрок всегда покупает самое дорогое яйцо, на которое хватает монет.<br>
+      Гипотеза: дивиденды со сберсчёта → выше баланс → чаще доступны СО/СВ → среднее тира растёт.
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">${tierCols}</div>`;
+}
+
 function renderGameParams() {
   const el = document.getElementById('gameParams');
+
+  // Header row: game names + энергия
+  const zoneHeaders = ZONES.map(z => `<th style="text-align:center;font-size:0.75rem;color:var(--text2)">${z.name}</th>`).join('');
+  const rows = GAMES.map(g => {
+    const costKey = g.key + '_cost';
+    const successKey = g.key + '_success';
+    const rewardCells = ZONES.map((z, zi) => {
+      const val = state[g.key + '_reward_z' + zi] ?? g.defaultRewards[zi];
+      const step = g.hasSuccess ? 1 : 0.5;
+      return `<td><input type="number" data-key="${g.key}_reward_z${zi}" value="${val}"
+                min="0" step="${step}" style="width:60px;background:var(--surface2);border:1px solid var(--border);
+                color:var(--text);padding:3px 5px;border-radius:4px;font-family:var(--mono);font-size:0.8rem"></td>`;
+    }).join('');
+    const extraFields = `<td style="padding-left:12px;font-size:0.75rem;color:var(--text2)">
+      стоимость: <input type="number" data-key="${costKey}" value="${state[costKey]}"
+        min="1" step="1" style="width:40px;background:var(--surface2);border:1px solid var(--border);
+        color:var(--text);padding:2px 4px;border-radius:4px;font-family:var(--mono);font-size:0.8rem"> э
+      ${g.hasSuccess ? `· успех: <input type="number" data-key="${successKey}" value="${state[successKey]}"
+        min="0" max="1" step="0.05" style="width:48px;background:var(--surface2);border:1px solid var(--border);
+        color:var(--text);padding:2px 4px;border-radius:4px;font-family:var(--mono);font-size:0.8rem">` : ''}
+    </td>`;
+    return `<tr>
+      <td style="font-size:0.8rem;color:var(--text);white-space:nowrap;padding-right:10px"><b>${g.name}</b><br>
+        <span style="font-size:0.65rem;color:var(--text2)">${g.hasSuccess ? 'монет за победу' : 'монет/энергию'}</span>
+      </td>
+      ${rewardCells}${extraFields}
+    </tr>`;
+  }).join('');
+
   el.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:4px">
-      <span style="font-size:0.8rem;color:var(--text2)">ОТК (сортировщик)</span>
-      <div class="field"><label>Стоимость (энергия)</label>
-        <input type="number" data-key="gA_cost" value="${state.gA_cost}" min="1" step="1"></div>
-      <div class="field"><label>Награда (монеты)</label>
-        <input type="number" data-key="gA_reward" value="${state.gA_reward}" min="0" step="1"></div>
-      <div class="field"><label>Успешность (%)</label>
-        <input type="number" data-key="gA_success" value="${state.gA_success}" min="0" max="1" step="0.01"></div>
-      <div style="font-size:0.7rem;color:var(--text2);font-family:var(--mono)">
-        ${(state.gA_reward * state.gA_success / state.gA_cost).toFixed(2)} ожид. монет/э</div>
+    <div style="font-size:0.8rem;color:var(--text2);margin-bottom:8px">
+      Награды растут медленнее стоимости яиц — давление нарастает по зонам.
     </div>
-    <div style="display:flex;flex-direction:column;gap:4px">
-      <span style="font-size:0.8rem;color:var(--text2)">СловоЦвет (слова)</span>
-      <div class="field"><label>Стоимость (энергия/слово)</label>
-        <input type="number" data-key="gB_cost" value="${state.gB_cost}" min="1" step="1"></div>
-      <div class="field"><label>Монет/энергию (среднее)</label>
-        <input type="number" data-key="gB_reward" value="${state.gB_reward}" min="0" step="0.1"></div>
-      <div style="font-size:0.7rem;color:var(--text2)">
-        4б=1м, 5б=3м, 6б=5м, 7б+=10м<br>
-        Требует ручного левел-дизайна</div>
+    <div style="overflow-x:auto">
+      <table style="border-collapse:collapse;width:100%">
+        <thead><tr><th></th>${zoneHeaders}<th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
     </div>`;
 }
 
@@ -914,13 +1011,10 @@ const CHART_COLORS = ['#4caf80', '#55cccc', '#e0a020', '#b88add'];
 
 function renderCharts() {
   const roomsCanvas = document.getElementById('chartRooms');
-  const ticketsCanvas = document.getElementById('chartTickets');
-  if (!roomsCanvas || !ticketsCanvas) return;
+  if (!roomsCanvas) return;
 
   const actDays = state.actDays || 90;
   const totalRooms = TOTAL_ROOMS;
-  const dupsPerZone = state.dupsPerZone || 3;
-  const ticketsMax = ZONES.length * (ROOMS_PER_ZONE * TICKETS_PER_ROOM + dupsPerZone);
 
   function drawChart(canvas, yMax, yLabel, getData, milestones) {
     const dpr = window.devicePixelRatio || 1;
@@ -1011,14 +1105,23 @@ function renderCharts() {
     });
   }
 
+  const tierCanvas = document.getElementById('chartTier');
+  if (!tierCanvas) return;
+
   // Zone boundary milestones for rooms chart
   const roomMilestones = ZONES.map((z, i) => ({
     val: (i + 1) * ROOMS_PER_ZONE,
     label: z.name
   }));
 
+  // Tier chart milestones: class boundaries at 0.5 and 1.5
+  const tierMilestones = [
+    { val: 0.5, label: '← С-1 / СО →' },
+    { val: 1.5, label: '← СО / СВ →' },
+  ];
+
   drawChart(roomsCanvas, totalRooms, 'комнат', 'rooms', roomMilestones);
-  drawChart(ticketsCanvas, ticketsMax, 'билетов', 'tickets', null);
+  drawChart(tierCanvas, 2, 'класс', 'tier', tierMilestones);
 
   const legEl = document.getElementById('chartLegend');
   if (legEl) {
@@ -1029,14 +1132,7 @@ function renderCharts() {
 }
 
 function renderGameEfficiency() {
-  const otkEff = (state.gA_reward * state.gA_success / state.gA_cost).toFixed(2);
-  const wordEff = (state.gB_reward).toFixed(2);
-  document.querySelectorAll('#gameParams > div').forEach((div, i) => {
-    const effEl = div.querySelector('div:last-child');
-    if (!effEl) return;
-    if (i === 0) effEl.textContent = `${otkEff} ожид. монет/э`;
-    else effEl.textContent = `${wordEff} монет/э (параметр)`;
-  });
+  // no-op: efficiency is now embedded in the per-zone table
 }
 
 function renderAnchorHints() {
@@ -1079,7 +1175,8 @@ function setupListeners() {
     const key = el.dataset.key;
     if (!key) return;
     state[key] = el.type === 'checkbox' ? (el.checked ? 1 : 0) : (parseFloat(el.value) || 0);
-    renderGameEfficiency();
+    // Re-render egg category hints when zone costs or multipliers change
+    if (key.startsWith('z') || key.endsWith('_mult')) renderEggCategoryParams();
     renderAnchorHints();
     renderSavingsHints();
     renderZoneHints();
@@ -1148,8 +1245,9 @@ function resetDefaults() {
 // ─── Init ─────────────────────────────────────────────────
 function renderAll() {
   renderZoneParams();
-  renderEnergyParams();
+  renderEggCategoryParams();
   renderGameParams();
+  renderEnergyParams();
   renderAnchorParams();
   renderSavingsParams();
   renderPlayers();
