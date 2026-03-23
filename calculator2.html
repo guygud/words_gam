@@ -421,7 +421,7 @@ function buildDefaultState() {
   s.numRuns = 500;
   s.baseCap = 12;
   s.maxCap = 24;
-  s.dupsPerZone = 3;
+  s.dupRate = 0.15; // probability of duplicate per item draw (~2-3 dupes/zone at default)
   // Streak rates (fraction per day)
   s.streak_1 = 0.10; s.streak_2 = 0.15; s.streak_3 = 0.20;
   s.streak_4 = 0.25; s.streak_5 = 0.35;
@@ -504,7 +504,7 @@ function simulatePlayer2(pKey) {
 
   const baseCap = state.baseCap || 12;
   const maxCap = state.maxCap || 24;
-  const dupsPerZone = Math.max(0, Math.round(state.dupsPerZone || 3));
+  const dupRate = Math.min(0.99, Math.max(0, state.dupRate ?? 0.15));
   const itemsNeeded = ITEMS_PER_ROOM * ROOMS_PER_ZONE; // 15 unique items to fill a zone
 
   const anchors = ANCHOR_TYPES.map(a => ({
@@ -569,7 +569,10 @@ function simulatePlayer2(pKey) {
         const otkReward = state['gA_reward_z' + zi] ?? GAMES[0].defaultRewards[zi];
         const wordCpe   = state['gB_reward_z' + zi] ?? GAMES[1].defaultRewards[zi];
 
-        let energy = dailyCap;
+        // Energy utilization: 1 session/day captures ~2 of 4 ticks (60%), 2+ sessions = 100%
+        const sessionsPerDay = state[pKey + '_sess'] || 1;
+        const utilization = sessionsPerDay >= 2 ? 1.0 : 0.6;
+        let energy = dailyCap * utilization;
 
         // Earn from OTK
         const otkGames = Math.floor(energy / otkCost);
@@ -589,20 +592,19 @@ function simulatePlayer2(pKey) {
           }
         }
 
-        // Savings: deposit grows as shadow balance; dividends are bonus coins on top
-        let spendable = coinsEarned;
-        if (usesSavings && depositFrac > 0) {
-          savingsDeposit += coinsEarned * depositFrac;
-          if (savingsDeposit > 0) {
-            const rate = streakRates[streak - 1] || 0.10;
-            const eggCostNow = state[ZONES[zi].key] || ZONES[zi].eggCost;
-            const maxDivs = 5 * eggCostNow * ROOMS_PER_ZONE;
-            if (dividendsThisZone < maxDivs) {
-              const divEarned = Math.min(savingsDeposit * rate, maxDivs - dividendsThisZone);
-              dividendsThisZone += divEarned;
-              totalDividends += divEarned;
-              spendable += divEarned;
-            }
+        // Savings: realistic model — deposit reduces spending budget, dividends are bonus on top
+        const depositIn = (usesSavings && depositFrac > 0) ? coinsEarned * depositFrac : 0;
+        savingsDeposit += depositIn;
+        let spendable = coinsEarned - depositIn;
+        if (usesSavings && savingsDeposit > 0) {
+          const rate = streakRates[streak - 1] || 0.10;
+          const eggCostNow = state[ZONES[zi].key] || ZONES[zi].eggCost;
+          const maxDivs = 5 * eggCostNow * (state['e2_mult'] ?? EGG_TYPES[2].defaultMult);
+          if (dividendsThisZone < maxDivs) {
+            const divEarned = Math.min(savingsDeposit * rate, maxDivs - dividendsThisZone);
+            dividendsThisZone += divEarned;
+            totalDividends += divEarned;
+            spendable += divEarned;
           }
         }
 
@@ -634,21 +636,21 @@ function simulatePlayer2(pKey) {
               newItems = EGG_TYPES[ei].itemsPerEgg; // СО=1, СВ=2
             }
 
-            // Distribute items: unique first, rest are duplicates
-            for (let it = 0; it < newItems; it++) {
-              if (uniqueItemsInZone < itemsNeeded) {
-                uniqueItemsInZone++;
-                if (uniqueItemsInZone % ITEMS_PER_ROOM === 0) {
-                  totalTickets += TICKETS_PER_ROOM; // room complete
-                }
-              } else {
-                dupItemsInZone++;
-                totalTickets += 1; // duplicate → 1 ticket
-              }
-            }
+                            // Distribute items: each item has dupRate chance of being a duplicate
+                            for (let it = 0; it < newItems; it++) {
+                              if (uniqueItemsInZone < itemsNeeded && Math.random() >= dupRate) {
+                                uniqueItemsInZone++;
+                                if (uniqueItemsInZone % ITEMS_PER_ROOM === 0) {
+                                  totalTickets += TICKETS_PER_ROOM; // room complete
+                                }
+                              } else {
+                                dupItemsInZone++;
+                                totalTickets += 1; // duplicate → 1 ticket
+                              }
+                            }
 
-            // Zone complete: all 15 items + enough duplicates
-            if (uniqueItemsInZone >= itemsNeeded && dupItemsInZone >= dupsPerZone) {
+                            // Zone complete: all 15 unique items collected
+                            if (uniqueItemsInZone >= itemsNeeded) {
               zoneDays.push(daysFromStart);
               currentZone++;
               uniqueItemsInZone = 0;
@@ -747,19 +749,22 @@ function runSimulation() {
 // ─── Rendering ────────────────────────────────────────────
 function renderZoneParams() {
   const el = document.getElementById('zoneParams');
-  const eggsPerZone = ITEMS_PER_ROOM * ROOMS_PER_ZONE + (state.dupsPerZone || 3);
+  const dupRate = state.dupRate ?? 0.15;
+  // Expected draws to collect 15 unique with dupRate: 15 / (1 - dupRate)
+  const expectedDraws = Math.round(15 / (1 - dupRate));
+  const expectedDups = Math.round(expectedDraws - 15);
   el.innerHTML = ZONES.map(z => {
     const cost = state[z.key] || z.eggCost;
-    const total = cost * eggsPerZone;
+    const total = cost * expectedDraws;
     return `<div class="field">
       <label>${z.name} — цена яйца</label>
       <input type="number" data-key="${z.key}" value="${cost}" min="1" step="1">
-      <span style="font-size:0.65rem;color:var(--text2)">~${eggsPerZone} яиц = ~${Math.round(total)} монет</span>
+      <span style="font-size:0.65rem;color:var(--text2)">~${expectedDraws} яиц = ~${Math.round(total)} монет</span>
     </div>`;
   }).join('') + `<div class="field">
-      <label>Дублей за зону</label>
-      <input type="number" data-key="dupsPerZone" value="${state.dupsPerZone || 3}" min="0" max="10" step="1">
-      <span style="font-size:0.65rem;color:var(--text2)">билетов/зону: ${15 + (state.dupsPerZone || 3)}</span>
+      <label>Вероятность дубля (0–1)</label>
+      <input type="number" data-key="dupRate" value="${dupRate}" min="0" max="0.99" step="0.01">
+      <span style="font-size:0.65rem;color:var(--text2)">~${expectedDups} дублей/зону, +${expectedDups} билетов</span>
     </div>`;
 }
 
@@ -776,7 +781,8 @@ function renderEnergyParams() {
     </div>
     <div style="font-size:0.8rem;color:var(--text2);padding-top:18px">
       Восстановление: 4 тика/день (каждые 6ч).<br>
-      Якоря постепенно поднимают кап до максимума.
+      Якоря постепенно поднимают кап до максимума.<br>
+      <b style="color:var(--text)">Использование по сессиям:</b> 1 сессия/день = 60% энергии (2 из 4 тиков), 2+ = 100%.
     </div>`;
 }
 
@@ -880,12 +886,17 @@ function renderSavingsParams() {
       <span style="font-size:0.65rem;color:var(--text2)">${(state['streak_' + i]*100).toFixed(0)}%/день</span>
     </div>`
   ).join('');
+  const svMult = state['e2_mult'] ?? EGG_TYPES[2].defaultMult;
+  const capHints = ZONES.map((z, zi) => {
+    const base = state[z.key] || z.eggCost;
+    return `з${zi+1}: ${Math.round(5 * base * svMult)}м`;
+  }).join(' · ');
   el.innerHTML = `
     <div style="margin-bottom:10px;font-size:0.8rem;color:var(--text2)">
-      Депозит растёт от заработанных монет, не уменьшая бюджет на яйца.
-      Дивиденды — бонусные монеты поверх обычного заработка.
-      Ставка растёт при ежедневных заходах. Пропуск — откат на шаг назад.
-      Макс. дивидендов за зону = 5 × цена яйца × кол-во комнат.
+      <b style="color:var(--text)">Реалистичная модель:</b> часть монет уходит на депозит и <b>недоступна</b> для покупки яиц.
+      Дивиденды начисляются на тело депозита и приходят <b>бонусом сверху</b>.
+      Ставка растёт при ежедневных заходах. Пропуск — откат на шаг назад.<br>
+      <span style="color:#b88add">Лимит дивидендов/зону = 5 × цена СВ:</span> ${capHints}
     </div>
     <div class="params-grid cols-5">${rateInputs}</div>`;
 }
@@ -957,8 +968,9 @@ function renderResults() {
     }
 
     const tbody = document.querySelector(`#table_${p.key} tbody`);
-    const dupsPerZone = state.dupsPerZone || 3;
-    const ticketsPerZone = ROOMS_PER_ZONE * TICKETS_PER_ROOM + dupsPerZone;
+    const dupRate = state.dupRate ?? 0.15;
+    const expectedDups = Math.round(15 / (1 - dupRate) - 15);
+    const ticketsPerZone = ROOMS_PER_ZONE * TICKETS_PER_ROOM + expectedDups;
 
     tbody.innerHTML = zones.map((z, zi) => {
       const dClass = !z.fitsInTime ? 'out-of-time' : z.median < 7 ? 'fast' : z.median < 21 ? 'medium' : 'slow';
@@ -1154,21 +1166,23 @@ function renderSavingsHints() {
 }
 
 function renderZoneHints() {
-  const eggsPerZone = ITEMS_PER_ROOM * ROOMS_PER_ZONE + (state.dupsPerZone || 3);
+  const dupRate = state.dupRate ?? 0.15;
+  const expectedDraws = Math.round(15 / (1 - dupRate));
+  const expectedDups = Math.round(expectedDraws - 15);
   document.querySelectorAll('#zoneParams .field').forEach((div, i) => {
     const hintEl = div.querySelector('span');
     if (!hintEl) return;
     if (i < ZONES.length) {
       const cost = state[ZONES[i].key] || ZONES[i].eggCost;
-      hintEl.textContent = `~${eggsPerZone} яиц = ~${Math.round(cost * eggsPerZone)} монет`;
+      hintEl.textContent = `~${expectedDraws} яиц = ~${Math.round(cost * expectedDraws)} монет`;
     } else {
-      const dups = state.dupsPerZone || 3;
-      hintEl.textContent = `билетов/зону: ${15 + dups}`;
+      hintEl.textContent = `~${expectedDups} дублей/зону, +${expectedDups} билетов`;
     }
   });
 }
 
 // ─── Events ───────────────────────────────────────────────
+let _urlDebounce = null;
 function setupListeners() {
   document.addEventListener('input', e => {
     const el = e.target;
@@ -1177,10 +1191,13 @@ function setupListeners() {
     state[key] = el.type === 'checkbox' ? (el.checked ? 1 : 0) : (parseFloat(el.value) || 0);
     // Re-render egg category hints when zone costs or multipliers change
     if (key.startsWith('z') || key.endsWith('_mult')) renderEggCategoryParams();
+    // Re-render savings hints when div cap inputs change
+    if (key.endsWith('_mult') || key.startsWith('z')) renderSavingsParams();
     renderAnchorHints();
     renderSavingsHints();
     renderZoneHints();
-    updateURL();
+    clearTimeout(_urlDebounce);
+    _urlDebounce = setTimeout(updateURL, 250);
   });
 }
 
