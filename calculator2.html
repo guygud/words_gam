@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Калькулятор прогресса: Курогочи ММБ</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #2e3344;
+  --text: #e1e4ed;
+  --text2: #8b90a0;
+  --accent: #5588ff;
+  --green: #4caf80;
+  --yellow: #e0a020;
+  --red: #e05555;
+  --blue: #5588dd;
+  --radius: 8px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+.container { max-width: 1400px; margin: 0 auto; padding: 20px 16px; }
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+header h1 { font-size: 1.5rem; font-weight: 700; }
+.header-actions { display: flex; gap: 8px; }
+.badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 10px;
+  vertical-align: middle;
+  margin-left: 6px;
+  letter-spacing: 0.05em;
+}
+
+.btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: var(--font);
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--border); border-color: var(--text2); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover { opacity: 0.85; }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--green); color: #111; padding: 10px 24px;
+  border-radius: var(--radius); font-weight: 600; font-size: 0.9rem;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999;
+}
+.toast.show { opacity: 1; }
+
+section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+section h2 {
+  font-size: 1.05rem;
+  margin-bottom: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+}
+section h2::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform 0.2s;
+}
+section h2.open::before { transform: rotate(90deg); }
+
+.params-grid { display: grid; gap: 8px 16px; }
+.params-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.params-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.params-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.params-grid.cols-5 { grid-template-columns: repeat(5, 1fr); }
+.params-grid.cols-6 { grid-template-columns: repeat(6, 1fr); }
+
+.field { display: flex; flex-direction: column; gap: 2px; }
+.field label {
+  font-size: 0.75rem;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.field input[type="number"],
+.field select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: var(--mono);
+  width: 100%;
+}
+.field input[type="number"]:focus { outline: none; border-color: var(--accent); }
+input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
+.field input[type="checkbox"] { width: auto; margin-right: 4px; }
+.field .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  padding: 4px 0;
+}
+
+.players-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.player-col {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.player-header {
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--border);
+}
+.player-col:nth-child(1) .player-header { background: #1a2a1a; color: var(--green); }
+.player-col:nth-child(2) .player-header { background: #1a2a2a; color: #5cc; }
+.player-col:nth-child(3) .player-header { background: #2a2a1a; color: var(--yellow); }
+.player-col:nth-child(4) .player-header { background: #2a1a2a; color: #b88add; }
+
+.player-params { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+
+.result-table-wrap { padding: 0 12px 12px; }
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-family: var(--mono);
+}
+.result-table th, .result-table td {
+  padding: 4px 5px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+.result-table th {
+  font-size: 0.68rem;
+  color: var(--text2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.result-table th:first-child, .result-table td:first-child { text-align: left; }
+.result-table tr:last-child { font-weight: 700; }
+.result-table tr:last-child td { border-top: 2px solid var(--border); border-bottom: none; }
+.result-table td.fast { color: var(--green); }
+.result-table td.medium { color: var(--yellow); }
+.result-table td.slow { color: var(--red); }
+.result-table td.out-of-time { color: var(--text2); text-decoration: line-through; opacity: 0.5; }
+
+.copy-btn-row { padding: 0 12px 12px; display: flex; gap: 6px; }
+
+.collapsible-content { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+.collapsible-content.open { max-height: 3000px; }
+
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+}
+.summary-card .days { font-size: 2rem; font-weight: 700; font-family: var(--mono); }
+.summary-card .label { font-size: 0.8rem; color: var(--text2); margin-top: 4px; }
+.summary-card:nth-child(1) .days { color: var(--green); }
+.summary-card:nth-child(2) .days { color: #5cc; }
+.summary-card:nth-child(3) .days { color: var(--yellow); }
+.summary-card:nth-child(4) .days { color: #b88add; }
+
+.back-link { color: var(--text2); text-decoration: none; font-size: 0.85rem; }
+.back-link:hover { color: var(--text); }
+
+.progress-bar-wrap { margin: 8px 12px; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.progress-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-wrap { background: var(--surface2); border-radius: var(--radius); padding: 12px; }
+.chart-wrap h3 { font-size: 0.9rem; margin-bottom: 8px; color: var(--text2); }
+.chart-wrap canvas { width: 100%; height: 280px; display: block; }
+
+.savings-highlight { color: #b88add; font-weight: 600; }
+
+@media (max-width: 1100px) {
+  .players-grid { grid-template-columns: repeat(2, 1fr); }
+  .summary-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .summary-row { grid-template-columns: 1fr; }
+  .charts-row { grid-template-columns: 1fr; }
+  .params-grid.cols-6 { grid-template-columns: repeat(3, 1fr); }
+  .params-grid.cols-5 { grid-template-columns: repeat(2, 1fr); }
+  .params-grid.cols-4 { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div>
+      <a href="index.html" class="back-link">&larr; Все игры</a>
+      <h1>Калькулятор прогресса: Курогочи <span class="badge">ММБ</span></h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn primary" onclick="copyShareLink()">Скопировать ссылку</button>
+      <button class="btn" onclick="resetDefaults()">Сбросить</button>
+    </div>
+  </header>
+
+  <section>
+    <h2 class="open" onclick="toggleSection(this)">Симуляция</h2>
+    <div class="collapsible-content open">
+      <div class="params-grid cols-3">
+        <div class="field">
+          <label>Всего дней активации</label>
+          <input type="number" data-key="actDays" value="90" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Прогонов (Монте-Карло)</label>
+          <input type="number" data-key="numRuns" value="500" min="100" max="5000" step="100">
+        </div>
+        <div>
+          <button class="btn primary" onclick="runSimulation()" style="margin-top:16px">Пересчитать</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="summary-row" id="summaryRow"></div>
+
+  <section>
+    <h2 class="open" onclick="toggleSection(this)">Графики прогресса</h2>
+    <div class="collapsible-content open">
+      <div class="charts-row">
+        <div class="chart-wrap">
+          <h3>Комнаты (медиана)</h3>
+          <canvas id="chartRooms"></canvas>
+        </div>
+        <div class="chart-wrap">
+          <h3>Билеты (медиана)</h3>
+          <canvas id="chartTickets"></canvas>
+        </div>
+      </div>
+      <div id="chartLegend" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:0.75rem;color:var(--text2)"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="open" onclick="toggleSection(this)">Яйца: стоимость и структура (5 зон × 3 комнаты × 5 предметов)</h2>
+    <div class="collapsible-content open">
+      <div class="params-grid cols-6" id="zoneParams"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 onclick="toggleSection(this)">Энергия</h2>
+    <div class="collapsible-content">
+      <div class="params-grid cols-4" id="energyParams"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 onclick="toggleSection(this)">Мини-игры</h2>
+    <div class="collapsible-content">
+      <div class="params-grid cols-4" id="gameParams"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 onclick="toggleSection(this)">Якоря (монеты + кап энергии)</h2>
+    <div class="collapsible-content">
+      <div class="params-grid cols-4" id="anchorParams"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 onclick="toggleSection(this)">Сберегательный счёт</h2>
+    <div class="collapsible-content">
+      <div id="savingsParams"></div>
+    </div>
+  </section>
+
+  <div class="players-grid" id="playersGrid"></div>
+
+  <div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end;">
+    <button class="btn" onclick="copyAllTables()">Скопировать все таблицы</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ─── Constants ────────────────────────────────────────────
+const ROOMS_PER_ZONE = 3;
+const ITEMS_PER_ROOM = 5;
+const TICKETS_PER_ROOM = 5;
+const TOTAL_ROOMS = 5 * ROOMS_PER_ZONE; // 15
+
+const ZONES = [
+  { key: 'z0', name: 'Зона 1', eggCost: 30 },
+  { key: 'z1', name: 'Зона 2', eggCost: 55 },
+  { key: 'z2', name: 'Зона 3', eggCost: 90 },
+  { key: 'z3', name: 'Зона 4', eggCost: 140 },
+  { key: 'z4', name: 'Зона 5', eggCost: 220 },
+];
+
+const GAMES = [
+  { key: 'gA', name: 'ОТК',       energyCost: 4, reward: 30, successRate: 0.75, hasSuccess: true },
+  { key: 'gB', name: 'СловоЦвет', energyCost: 1, coinsPerEnergy: 3.0, hasSuccess: false },
+];
+
+const ANCHOR_TYPES = [
+  { key: 'aL', name: 'Лёгкий',   coins: 20,  capBonus: 0.5 },
+  { key: 'aM', name: 'Средний',  coins: 50,  capBonus: 1.0 },
+  { key: 'aH', name: 'Тяжёлый', coins: 100, capBonus: 2.0 },
+];
+
+const PLAYERS = [
+  {
+    key: 'p0', name: 'Невовлечённый',
+    daysPerWeek: 3, sessionsPerDay: 1, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 1.4 }],
+    savings: false, depositFrac: 0,
+  },
+  {
+    key: 'p1', name: 'Вовлечённый',
+    daysPerWeek: 4, sessionsPerDay: 2, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 3.5 }, { type: 1, count: 1.4 }],
+    savings: false, depositFrac: 0,
+  },
+  {
+    key: 'p2', name: 'Вовлечённый + Счёт',
+    daysPerWeek: 4, sessionsPerDay: 2, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 3.5 }, { type: 1, count: 1.4 }],
+    savings: true, depositFrac: 0.4,
+  },
+  {
+    key: 'p3', name: 'Хардкор',
+    daysPerWeek: 7, sessionsPerDay: 3, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 5 }, { type: 1, count: 2 }, { type: 2, count: 1 }],
+    savings: true, depositFrac: 0.4,
+  },
+];
+
+// ─── State ────────────────────────────────────────────────
+let state = buildDefaultState();
+let simCache = {};
+
+function buildDefaultState() {
+  const s = {};
+  s.actDays = 90;
+  s.numRuns = 500;
+  s.baseCap = 12;
+  s.maxCap = 24;
+  s.dupsPerZone = 3;
+  // Streak rates (fraction per day)
+  s.streak_1 = 0.10; s.streak_2 = 0.15; s.streak_3 = 0.20;
+  s.streak_4 = 0.25; s.streak_5 = 0.35;
+
+  ZONES.forEach(z => s[z.key] = z.eggCost);
+  GAMES.forEach(g => {
+    s[g.key + '_cost'] = g.energyCost;
+    s[g.key + '_reward'] = g.reward ?? g.coinsPerEnergy;
+    if (g.hasSuccess) s[g.key + '_success'] = g.successRate;
+  });
+  ANCHOR_TYPES.forEach(a => {
+    s[a.key + '_coins'] = a.coins;
+    s[a.key + '_cap'] = a.capBonus;
+  });
+  PLAYERS.forEach(p => {
+    s[p.key + '_days'] = p.daysPerWeek;
+    s[p.key + '_sess'] = p.sessionsPerDay;
+    s[p.key + '_start'] = p.startDay;
+    s[p.key + '_savings'] = p.savings ? 1 : 0;
+    s[p.key + '_depfrac'] = p.depositFrac;
+    ANCHOR_TYPES.forEach((a, ai) => {
+      const found = p.anchorsPerWeek.find(x => x.type === ai);
+      s[p.key + '_' + a.key] = found ? found.count : 0;
+    });
+  });
+  return s;
+}
+
+// ─── URL Serialization ────────────────────────────────────
+function stateToQuery() {
+  const def = buildDefaultState();
+  const parts = [];
+  for (const k in def) {
+    if (state[k] !== def[k]) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(state[k]));
+  }
+  return parts.length ? '?' + parts.join('&') : '';
+}
+
+function loadFromQuery() {
+  const params = new URLSearchParams(location.search);
+  for (const [k, v] of params) {
+    if (k in state) state[k] = parseFloat(v);
+  }
+}
+
+function updateURL() {
+  history.replaceState(null, '', location.pathname + stateToQuery());
+}
+
+// ─── Monte Carlo Engine ───────────────────────────────────
+function poissonSample(lambda) {
+  if (lambda <= 0) return 0;
+  let L = Math.exp(-lambda), k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k - 1;
+}
+
+function pct(arr, p) {
+  const s = arr.filter(x => x < Infinity).sort((a, b) => a - b);
+  if (!s.length) return Infinity;
+  return s[Math.max(0, Math.ceil(p / 100 * s.length) - 1)];
+}
+
+function pctAll(arr, p) {
+  const s = [...arr].sort((a, b) => a - b);
+  if (!s.length) return 0;
+  return s[Math.max(0, Math.ceil(p / 100 * s.length) - 1)];
+}
+
+function simulatePlayer2(pKey) {
+  const numRuns = state.numRuns || 500;
+  const actDays = state.actDays;
+  const daysPerWeek = state[pKey + '_days'];
+  const startDay = state[pKey + '_start'] || 0;
+  const usesSavings = !!state[pKey + '_savings'];
+  const depositFrac = state[pKey + '_depfrac'] || 0;
+  const availableDays = Math.max(0, actDays - startDay);
+
+  const baseCap = state.baseCap || 12;
+  const maxCap = state.maxCap || 24;
+  const dupsPerZone = Math.max(0, Math.round(state.dupsPerZone || 3));
+  const eggsPerZone = ITEMS_PER_ROOM * ROOMS_PER_ZONE + dupsPerZone;
+
+  const anchors = ANCHOR_TYPES.map(a => ({
+    perDay: (state[pKey + '_' + a.key] || 0) / 7,
+    coins: state[a.key + '_coins'] || 0,
+    capBonus: state[a.key + '_cap'] || 0,
+  }));
+
+  const otkCost = state['gA_cost'] || 4;
+  const otkReward = state['gA_reward'] || 30;
+  const otkSuccess = state['gA_success'] || 0.75;
+  const wordCpe = state['gB_reward'] || 3.0; // coins per energy for word game
+
+  const streakRates = [
+    state.streak_1, state.streak_2, state.streak_3, state.streak_4, state.streak_5,
+  ];
+
+  const allZoneDays = [];
+  const allTotalTickets = [];
+  const allTotalDividends = [];
+  const allCoinsLeft = [];
+  const allRoomsByDay = [];
+  const allTicketsByDay = [];
+
+  for (let run = 0; run < numRuns; run++) {
+    let dailyCap = baseCap;
+    let coins = 0;
+    let savingsDeposit = 0;
+    let dividendsThisZone = 0;
+    let totalDividends = 0;
+    let totalTickets = 0;
+    let currentZone = 0;
+    let eggsInZone = 0;
+    let streak = 0;
+    let lastPlayDay = -2;
+    const zoneDays = [];
+    const roomsByDay = [];
+    const ticketsByDay = [];
+
+    for (let day = 0; day < actDays; day++) {
+      if (day < startDay) {
+        roomsByDay.push(0);
+        ticketsByDay.push(0);
+        continue;
+      }
+
+      const daysFromStart = day - startDay;
+      const playChance = Math.min(1, daysPerWeek / 7);
+      const isPlayDay = Math.random() < playChance;
+
+      if (isPlayDay) {
+        if (day === lastPlayDay + 1) streak = Math.min(streak + 1, 5);
+        else streak = 1;
+        lastPlayDay = day;
+
+        let energy = dailyCap;
+
+        // Earn from OTK
+        const otkGames = Math.floor(energy / otkCost);
+        let coinsEarned = 0;
+        for (let g = 0; g < otkGames; g++) {
+          if (Math.random() < otkSuccess) coinsEarned += otkReward;
+        }
+        const energyForWord = energy - otkGames * otkCost;
+        coinsEarned += energyForWord * wordCpe;
+
+        // Earn from anchors + grow cap
+        for (const a of anchors) {
+          const n = poissonSample(a.perDay);
+          if (n > 0) {
+            coinsEarned += n * a.coins;
+            dailyCap = Math.min(maxCap, dailyCap + n * a.capBonus);
+          }
+        }
+
+        // Savings
+        let spendable = coinsEarned;
+        if (usesSavings && depositFrac > 0 && coinsEarned > 0) {
+          const toDeposit = coinsEarned * depositFrac;
+          savingsDeposit += toDeposit;
+          spendable = coinsEarned - toDeposit;
+
+          // Apply daily interest on existing deposit
+          const rate = streakRates[streak - 1] || 0.10;
+          const maxDivs = 5 * (state[ZONES[Math.min(currentZone, ZONES.length - 1)].key] ||
+                               ZONES[Math.min(currentZone, ZONES.length - 1)].eggCost);
+          if (dividendsThisZone < maxDivs && savingsDeposit > 0) {
+            const divEarned = Math.min(savingsDeposit * rate, maxDivs - dividendsThisZone);
+            dividendsThisZone += divEarned;
+            totalDividends += divEarned;
+            spendable += divEarned;
+          }
+        }
+
+        coins += spendable;
+
+        // Buy eggs
+        while (currentZone < ZONES.length) {
+          const eggCost = state[ZONES[currentZone].key] || ZONES[currentZone].eggCost;
+          if (coins < eggCost) break;
+
+          coins -= eggCost;
+          eggsInZone++;
+          const itemsInZone = Math.min(eggsInZone, ITEMS_PER_ROOM * ROOMS_PER_ZONE);
+
+          if (eggsInZone <= ITEMS_PER_ROOM * ROOMS_PER_ZONE) {
+            if (itemsInZone % ITEMS_PER_ROOM === 0) {
+              totalTickets += TICKETS_PER_ROOM;
+            }
+          } else {
+            totalTickets += 1; // duplicate → 1 ticket
+          }
+
+          if (eggsInZone >= eggsPerZone) {
+            zoneDays.push(daysFromStart);
+            currentZone++;
+            eggsInZone = 0;
+            dividendsThisZone = 0;
+          }
+        }
+      }
+
+      const roomsDone = Math.min(
+        currentZone * ROOMS_PER_ZONE +
+          Math.floor(Math.min(eggsInZone, ITEMS_PER_ROOM * ROOMS_PER_ZONE) / ITEMS_PER_ROOM),
+        TOTAL_ROOMS
+      );
+      roomsByDay.push(roomsDone);
+      ticketsByDay.push(totalTickets);
+    }
+
+    while (zoneDays.length < ZONES.length) zoneDays.push(Infinity);
+    allZoneDays.push(zoneDays);
+    allTotalTickets.push(totalTickets);
+    allTotalDividends.push(totalDividends);
+    allCoinsLeft.push(coins);
+    allRoomsByDay.push(roomsByDay);
+    allTicketsByDay.push(ticketsByDay);
+  }
+
+  const chartData = buildChartData2(allRoomsByDay, allTicketsByDay, actDays);
+  return aggregate2(allZoneDays, allTotalTickets, allTotalDividends, allCoinsLeft,
+                    availableDays, usesSavings, chartData, numRuns);
+}
+
+function buildChartData2(allRoomsByDay, allTicketsByDay, actDays) {
+  const roomsMedian = [];
+  const ticketsMedian = [];
+  const n = allRoomsByDay.length;
+  for (let d = 0; d < actDays; d++) {
+    const rSorted = allRoomsByDay.map(r => r[d]).sort((a, b) => a - b);
+    const tSorted = allTicketsByDay.map(r => r[d]).sort((a, b) => a - b);
+    const mi = Math.min(Math.floor(n * 0.5), n - 1);
+    roomsMedian.push(rSorted[mi] ?? 0);
+    ticketsMedian.push(tSorted[mi] ?? 0);
+  }
+  return { rooms: roomsMedian, tickets: ticketsMedian };
+}
+
+function aggregate2(allZoneDays, allTickets, allDividends, allCoins,
+                    availableDays, usesSavings, chartData, numRuns) {
+  const zones = [];
+  for (let z = 0; z < ZONES.length; z++) {
+    const days = allZoneDays.map(r => r[z]);
+    const finished = days.filter(d => d < Infinity);
+    zones.push({
+      name: ZONES[z].name,
+      eggCost: state[ZONES[z].key] || ZONES[z].eggCost,
+      p10: pct(days, 10),
+      median: pct(days, 50),
+      p90: pct(days, 90),
+      completionRate: finished.length / days.length,
+      fitsInTime: pct(days, 50) <= availableDays,
+    });
+  }
+
+  const totals = allZoneDays.map(r => r[ZONES.length - 1]);
+
+  return {
+    zones,
+    availableDays,
+    totalP10: pct(totals, 10),
+    totalMedian: pct(totals, 50),
+    totalP90: pct(totals, 90),
+    totalCompletionRate: totals.filter(d => d < Infinity).length / numRuns,
+    ticketsMedian: pctAll(allTickets, 50),
+    ticketsP10: pctAll(allTickets, 10),
+    ticketsP90: pctAll(allTickets, 90),
+    dividendsMedian: pctAll(allDividends, 50),
+    dividendsP90: pctAll(allDividends, 90),
+    coinsLeftMedian: pctAll(allCoins, 50),
+    usesSavings,
+    chartData,
+  };
+}
+
+function runSimulation() {
+  const t0 = performance.now();
+  simCache = {};
+  PLAYERS.forEach(p => { simCache[p.key] = simulatePlayer2(p.key); });
+  const elapsed = (performance.now() - t0).toFixed(0);
+  renderResults();
+  renderCharts();
+  updateURL();
+  showToast(`${state.numRuns} прогонов × ${PLAYERS.length} профилей за ${elapsed} мс`);
+}
+
+// ─── Rendering ────────────────────────────────────────────
+function renderZoneParams() {
+  const el = document.getElementById('zoneParams');
+  const eggsPerZone = ITEMS_PER_ROOM * ROOMS_PER_ZONE + (state.dupsPerZone || 3);
+  el.innerHTML = ZONES.map(z => {
+    const cost = state[z.key] || z.eggCost;
+    const total = cost * eggsPerZone;
+    return `<div class="field">
+      <label>${z.name} — цена яйца</label>
+      <input type="number" data-key="${z.key}" value="${cost}" min="1" step="1">
+      <span style="font-size:0.65rem;color:var(--text2)">~${eggsPerZone} яиц = ~${Math.round(total)} монет</span>
+    </div>`;
+  }).join('') + `<div class="field">
+      <label>Дублей за зону</label>
+      <input type="number" data-key="dupsPerZone" value="${state.dupsPerZone || 3}" min="0" max="10" step="1">
+      <span style="font-size:0.65rem;color:var(--text2)">билетов/зону: ${15 + (state.dupsPerZone || 3)}</span>
+    </div>`;
+}
+
+function renderEnergyParams() {
+  const el = document.getElementById('energyParams');
+  el.innerHTML = `
+    <div class="field">
+      <label>База кап/день (без якорей)</label>
+      <input type="number" data-key="baseCap" value="${state.baseCap}" min="1" step="1">
+    </div>
+    <div class="field">
+      <label>Макс. кап/день (с якорями)</label>
+      <input type="number" data-key="maxCap" value="${state.maxCap}" min="1" step="1">
+    </div>
+    <div style="font-size:0.8rem;color:var(--text2);padding-top:18px">
+      Восстановление: 4 тика/день (каждые 6ч).<br>
+      Якоря постепенно поднимают кап до максимума.
+    </div>`;
+}
+
+function renderGameParams() {
+  const el = document.getElementById('gameParams');
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <span style="font-size:0.8rem;color:var(--text2)">ОТК (сортировщик)</span>
+      <div class="field"><label>Стоимость (энергия)</label>
+        <input type="number" data-key="gA_cost" value="${state.gA_cost}" min="1" step="1"></div>
+      <div class="field"><label>Награда (монеты)</label>
+        <input type="number" data-key="gA_reward" value="${state.gA_reward}" min="0" step="1"></div>
+      <div class="field"><label>Успешность (%)</label>
+        <input type="number" data-key="gA_success" value="${state.gA_success}" min="0" max="1" step="0.01"></div>
+      <div style="font-size:0.7rem;color:var(--text2);font-family:var(--mono)">
+        ${(state.gA_reward * state.gA_success / state.gA_cost).toFixed(2)} ожид. монет/э</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <span style="font-size:0.8rem;color:var(--text2)">СловоЦвет (слова)</span>
+      <div class="field"><label>Стоимость (энергия/слово)</label>
+        <input type="number" data-key="gB_cost" value="${state.gB_cost}" min="1" step="1"></div>
+      <div class="field"><label>Монет/энергию (среднее)</label>
+        <input type="number" data-key="gB_reward" value="${state.gB_reward}" min="0" step="0.1"></div>
+      <div style="font-size:0.7rem;color:var(--text2)">
+        4б=1м, 5б=3м, 6б=5м, 7б+=10м<br>
+        Требует ручного левел-дизайна</div>
+    </div>`;
+}
+
+function renderAnchorParams() {
+  const el = document.getElementById('anchorParams');
+  el.innerHTML = ANCHOR_TYPES.map(a =>
+    `<div style="display:flex;flex-direction:column;gap:4px">
+      <span style="font-size:0.8rem;color:var(--text2)">${a.name}</span>
+      <div class="field"><label>Монеты</label>
+        <input type="number" data-key="${a.key}_coins" value="${state[a.key + '_coins']}" min="0" step="5"></div>
+      <div class="field"><label>+Кап/день</label>
+        <input type="number" data-key="${a.key}_cap" value="${state[a.key + '_cap']}" min="0" step="0.5"></div>
+      <div style="font-size:0.7rem;color:var(--text2)">
+        ${state[a.key + '_coins']}м + ${state[a.key + '_cap']}э/день</div>
+    </div>`
+  ).join('');
+}
+
+function renderSavingsParams() {
+  const el = document.getElementById('savingsParams');
+  const rateInputs = [1,2,3,4,5].map(i =>
+    `<div class="field"><label>Стрик ${i} (доля/день)</label>
+      <input type="number" data-key="streak_${i}" value="${state['streak_' + i]}" min="0" max="1" step="0.01">
+      <span style="font-size:0.65rem;color:var(--text2)">${(state['streak_' + i]*100).toFixed(0)}%/день</span>
+    </div>`
+  ).join('');
+  el.innerHTML = `
+    <div style="margin-bottom:10px;font-size:0.8rem;color:var(--text2)">
+      Ставка растёт при ежедневных заходах. Пропуск — откат на шаг назад.
+      Максимум дивидендов = 5 × стоимость яйца текущей зоны.
+    </div>
+    <div class="params-grid cols-5">${rateInputs}</div>`;
+}
+
+function renderPlayers() {
+  const grid = document.getElementById('playersGrid');
+  grid.innerHTML = PLAYERS.map(p => {
+    const anchorsHTML = ANCHOR_TYPES.map(a =>
+      `<div class="field"><label>${a.name} якорей/нед</label>
+        <input type="number" data-key="${p.key}_${a.key}" value="${state[p.key + '_' + a.key]}" min="0" step="0.5"></div>`
+    ).join('');
+    const savChecked = state[p.key + '_savings'] ? 'checked' : '';
+
+    return `<div class="player-col">
+      <div class="player-header">${p.name}</div>
+      <div class="player-params">
+        <div class="field"><label>Дней в неделю</label>
+          <input type="number" data-key="${p.key}_days" value="${state[p.key + '_days']}" min="1" max="7" step="1"></div>
+        <div class="field"><label>Сессий в день</label>
+          <input type="number" data-key="${p.key}_sess" value="${state[p.key + '_sess']}" min="0.5" max="10" step="0.5"></div>
+        <div class="field"><label>День подключения</label>
+          <input type="number" data-key="${p.key}_start" value="${state[p.key + '_start']}" min="0" step="1"></div>
+        ${anchorsHTML}
+        <div class="field"><label class="checkbox-row">
+          <input type="checkbox" data-key="${p.key}_savings" ${savChecked}> Использует сбер. счёт
+        </label></div>
+        <div class="field"><label>Доля монет на депозит</label>
+          <input type="number" data-key="${p.key}_depfrac" value="${state[p.key + '_depfrac']}" min="0" max="1" step="0.05"></div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="bar_${p.key}"></div>
+      </div>
+      <div class="result-table-wrap">
+        <table class="result-table" id="table_${p.key}">
+          <thead>
+            <tr><th>Зона</th><th>Яйцо</th><th>P10</th><th>Медиана</th><th>P90</th><th>%</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="copy-btn-row">
+        <button class="btn" onclick="copyTable('${p.key}')">Скопировать</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function fmtD(d) { return d === Infinity ? '∞' : d.toFixed(0); }
+function fmtR(v) { return v === Infinity ? '∞' : v.toFixed(0); }
+
+function renderResults() {
+  const summaryRow = document.getElementById('summaryRow');
+  const summaryCards = [];
+
+  PLAYERS.forEach(p => {
+    const sim = simCache[p.key];
+    if (!sim) return;
+    const { zones, availableDays, totalP10, totalMedian, totalP90,
+            totalCompletionRate, ticketsMedian, ticketsP10, ticketsP90,
+            dividendsMedian, dividendsP90, coinsLeftMedian, usesSavings } = sim;
+
+    const zonesCompleted = zones.filter(z => z.fitsInTime).length;
+    const progressPct = Math.min(100, (zonesCompleted / zones.length) * 100);
+
+    const bar = document.getElementById('bar_' + p.key);
+    if (bar) {
+      bar.style.width = progressPct + '%';
+      bar.style.background = progressPct >= 100 ? 'var(--green)' : progressPct >= 50 ? 'var(--yellow)' : 'var(--red)';
+    }
+
+    const tbody = document.querySelector(`#table_${p.key} tbody`);
+    const dupsPerZone = state.dupsPerZone || 3;
+    const ticketsPerZone = ROOMS_PER_ZONE * TICKETS_PER_ROOM + dupsPerZone;
+
+    tbody.innerHTML = zones.map((z, zi) => {
+      const dClass = !z.fitsInTime ? 'out-of-time' : z.median < 7 ? 'fast' : z.median < 21 ? 'medium' : 'slow';
+      return `<tr>
+        <td>${z.name}</td>
+        <td>${z.eggCost}м</td>
+        <td class="${dClass}" style="font-size:0.68rem">${fmtD(z.p10)}</td>
+        <td class="${dClass}"><b>${fmtD(z.median)}</b></td>
+        <td class="${dClass}" style="font-size:0.68rem">${fmtD(z.p90)}</td>
+        <td style="font-size:0.68rem;color:var(--text2)">${(z.completionRate*100).toFixed(0)}%</td>
+      </tr>`;
+    }).join('') + `<tr>
+      <td>Итого</td><td></td>
+      <td style="font-size:0.68rem">${fmtD(totalP10)}</td>
+      <td><b>${fmtD(totalMedian)}</b></td>
+      <td style="font-size:0.68rem">${fmtD(totalP90)}</td>
+      <td style="font-size:0.68rem">${(totalCompletionRate*100).toFixed(0)}%</td>
+    </tr><tr style="font-weight:normal;font-size:0.72rem;color:var(--text2)">
+      <td>Билеты</td><td></td>
+      <td>${fmtR(ticketsP10)}</td>
+      <td><b style="color:var(--accent)">${fmtR(ticketsMedian)}</b></td>
+      <td>${fmtR(ticketsP90)}</td><td></td>
+    </tr>` + (usesSavings ? `<tr style="font-weight:normal;font-size:0.72rem;color:#b88add">
+      <td>Дивиденды</td><td></td><td></td>
+      <td><b>${fmtR(dividendsMedian)}</b>м</td>
+      <td style="font-size:0.65rem">(до ${fmtR(dividendsP90)})</td><td></td>
+    </tr>` : '');
+
+    const startDay = state[p.key + '_start'];
+    const startLabel = startDay > 0 ? `<br><span style="font-size:0.7rem">старт: д${startDay}</span>` : '';
+    const pctLabel = totalMedian <= availableDays
+      ? `<span style="font-size:0.7rem;color:var(--green)">${(totalCompletionRate*100).toFixed(0)}% успевают</span>`
+      : `<span style="font-size:0.7rem;color:var(--red)">${zonesCompleted}/${zones.length} зон</span>`;
+    const range = `<span style="font-size:0.65rem;color:var(--text2)">${fmtD(totalP10)}–${fmtD(totalP90)} дн</span>`;
+    const tLabel = `<span style="font-size:0.7rem;color:var(--accent)">🎟 ${fmtR(ticketsMedian)} билетов</span>`;
+    const savLabel = usesSavings
+      ? `<br><span style="font-size:0.65rem;color:#b88add">Депозит: +${fmtR(dividendsMedian)}м (до ${fmtR(dividendsP90)})</span>`
+      : '';
+
+    summaryCards.push(`<div class="summary-card">
+      <div class="days">${fmtD(totalMedian)}</div>
+      <div class="label">${p.name}${startLabel}<br>${pctLabel}<br>${range}<br>${tLabel}${savLabel}</div>
+    </div>`);
+  });
+
+  summaryRow.innerHTML = summaryCards.join('');
+}
+
+const CHART_COLORS = ['#4caf80', '#55cccc', '#e0a020', '#b88add'];
+
+function renderCharts() {
+  const roomsCanvas = document.getElementById('chartRooms');
+  const ticketsCanvas = document.getElementById('chartTickets');
+  if (!roomsCanvas || !ticketsCanvas) return;
+
+  const actDays = state.actDays || 90;
+  const totalRooms = TOTAL_ROOMS;
+  const dupsPerZone = state.dupsPerZone || 3;
+  const ticketsMax = ZONES.length * (ROOMS_PER_ZONE * TICKETS_PER_ROOM + dupsPerZone);
+
+  function drawChart(canvas, yMax, yLabel, getData) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width) return;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    const w = rect.width, h = rect.height;
+    const pad = { left: 46, right: 12, top: 12, bottom: 30 };
+    const plotW = w - pad.left - pad.right;
+    const plotH = h - pad.top - pad.bottom;
+
+    ctx.fillStyle = '#1a1d27';
+    ctx.fillRect(0, 0, w, h);
+
+    const gridRows = 4;
+    for (let i = 0; i <= gridRows; i++) {
+      const y = pad.top + (i / gridRows) * plotH;
+      const val = Math.round(yMax * (1 - i / gridRows));
+      ctx.strokeStyle = i === gridRows ? '#3a3d50' : '#252838';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + plotW, y); ctx.stroke();
+      ctx.fillStyle = '#6b7080'; ctx.font = '10px system-ui,sans-serif';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(val.toString(), pad.left - 5, y);
+    }
+
+    ctx.fillStyle = '#8b90a0'; ctx.font = '10px system-ui,sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(yLabel, pad.left, pad.top - 2);
+
+    const xTicks = Math.min(6, actDays);
+    for (let i = 0; i <= xTicks; i++) {
+      const day = Math.round((i / xTicks) * actDays);
+      const x = pad.left + (i / xTicks) * plotW;
+      ctx.strokeStyle = '#252838'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + plotH); ctx.stroke();
+      ctx.fillStyle = '#6b7080'; ctx.font = '10px system-ui,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText('д' + day, x, h - 6);
+    }
+
+    PLAYERS.forEach((p, pi) => {
+      const data = simCache[p.key]?.chartData?.[getData];
+      if (!data || !data.length) return;
+      ctx.strokeStyle = CHART_COLORS[pi];
+      ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < data.length; i++) {
+        const x = pad.left + (i / Math.max(1, data.length - 1)) * plotW;
+        const y = pad.top + plotH - Math.min(1, data[i] / yMax) * plotH;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+  }
+
+  drawChart(roomsCanvas, totalRooms, 'комнаты', 'rooms');
+  drawChart(ticketsCanvas, ticketsMax, 'билеты', 'tickets');
+
+  const legEl = document.getElementById('chartLegend');
+  if (legEl) {
+    legEl.innerHTML = PLAYERS.map((p, pi) =>
+      `<span style="color:${CHART_COLORS[pi]}">${p.name}</span>`
+    ).join(' · ');
+  }
+}
+
+function renderGameEfficiency() {
+  const otkEff = (state.gA_reward * state.gA_success / state.gA_cost).toFixed(2);
+  const wordEff = (state.gB_reward).toFixed(2);
+  document.querySelectorAll('#gameParams > div').forEach((div, i) => {
+    const effEl = div.querySelector('div:last-child');
+    if (!effEl) return;
+    if (i === 0) effEl.textContent = `${otkEff} ожид. монет/э`;
+    else effEl.textContent = `${wordEff} монет/э (параметр)`;
+  });
+}
+
+function renderAnchorHints() {
+  document.querySelectorAll('#anchorParams > div').forEach((div, i) => {
+    const hintEl = div.querySelector('div:last-child');
+    if (!hintEl) return;
+    const a = ANCHOR_TYPES[i];
+    hintEl.textContent = `${state[a.key + '_coins']}м + ${state[a.key + '_cap']}э/день`;
+  });
+}
+
+function renderSavingsHints() {
+  document.querySelectorAll('#savingsParams .field').forEach((div, i) => {
+    const hintEl = div.querySelector('span');
+    if (!hintEl) return;
+    const v = state['streak_' + (i + 1)] || 0;
+    hintEl.textContent = `${(v * 100).toFixed(0)}%/день`;
+  });
+}
+
+function renderZoneHints() {
+  const eggsPerZone = ITEMS_PER_ROOM * ROOMS_PER_ZONE + (state.dupsPerZone || 3);
+  document.querySelectorAll('#zoneParams .field').forEach((div, i) => {
+    const hintEl = div.querySelector('span');
+    if (!hintEl) return;
+    if (i < ZONES.length) {
+      const cost = state[ZONES[i].key] || ZONES[i].eggCost;
+      hintEl.textContent = `~${eggsPerZone} яиц = ~${Math.round(cost * eggsPerZone)} монет`;
+    } else {
+      const dups = state.dupsPerZone || 3;
+      hintEl.textContent = `билетов/зону: ${15 + dups}`;
+    }
+  });
+}
+
+// ─── Events ───────────────────────────────────────────────
+function setupListeners() {
+  document.addEventListener('input', e => {
+    const el = e.target;
+    const key = el.dataset.key;
+    if (!key) return;
+    state[key] = el.type === 'checkbox' ? (el.checked ? 1 : 0) : (parseFloat(el.value) || 0);
+    renderGameEfficiency();
+    renderAnchorHints();
+    renderSavingsHints();
+    renderZoneHints();
+    updateURL();
+  });
+}
+
+function toggleSection(h2) {
+  h2.classList.toggle('open');
+  h2.nextElementSibling.classList.toggle('open');
+}
+
+// ─── Copy / Share ─────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function copyShareLink() {
+  navigator.clipboard.writeText(location.origin + location.pathname + stateToQuery())
+    .then(() => showToast('Ссылка скопирована!'));
+}
+
+function buildTableTSV(pKey) {
+  const p = PLAYERS.find(x => x.key === pKey);
+  const sim = simCache[pKey];
+  if (!sim) return '';
+  const { zones, availableDays, totalP10, totalMedian, totalP90,
+          ticketsMedian, dividendsMedian, usesSavings } = sim;
+  let tsv = `${p.name} (${availableDays} дней)\n`;
+  tsv += 'Зона\tЯйцо\tP10\tМедиана\tP90\t%\n';
+  zones.forEach(z => {
+    tsv += `${z.name}\t${z.eggCost}м\t${fmtD(z.p10)}\t${fmtD(z.median)}\t${fmtD(z.p90)}\t${(z.completionRate*100).toFixed(0)}%\n`;
+  });
+  tsv += `Итого\t\t${fmtD(totalP10)}\t${fmtD(totalMedian)}\t${fmtD(totalP90)}\n`;
+  tsv += `Билетов\t\t\t${fmtR(ticketsMedian)}\t\n`;
+  if (usesSavings) tsv += `Дивиденды\t\t\t${fmtR(dividendsMedian)}м\t\n`;
+  return tsv;
+}
+
+async function copyTable(pKey) {
+  const tsv = buildTableTSV(pKey);
+  try {
+    await navigator.clipboard.writeText(tsv);
+    showToast('Таблица скопирована!');
+  } catch { showToast('Ошибка копирования'); }
+}
+
+async function copyAllTables() {
+  const all = PLAYERS.map(p => buildTableTSV(p.key)).join('\n');
+  try {
+    await navigator.clipboard.writeText(all);
+    showToast('Все таблицы скопированы!');
+  } catch { showToast('Ошибка копирования'); }
+}
+
+function resetDefaults() {
+  state = buildDefaultState();
+  history.replaceState(null, '', location.pathname);
+  renderAll();
+  runSimulation();
+}
+
+// ─── Init ─────────────────────────────────────────────────
+function renderAll() {
+  renderZoneParams();
+  renderEnergyParams();
+  renderGameParams();
+  renderAnchorParams();
+  renderSavingsParams();
+  renderPlayers();
+}
+
+loadFromQuery();
+renderAll();
+setupListeners();
+runSimulation();
+</script>
+</body>
+</html>
