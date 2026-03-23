@@ -224,7 +224,7 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.5; }
 .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .chart-wrap { background: var(--surface2); border-radius: var(--radius); padding: 12px; }
 .chart-wrap h3 { font-size: 0.9rem; margin-bottom: 8px; color: var(--text2); }
-.chart-wrap canvas { width: 100%; height: 280px; display: block; }
+.chart-wrap canvas { width: 100%; height: 360px; display: block; }
 
 .savings-highlight { color: #b88add; font-weight: 600; }
 
@@ -346,16 +346,19 @@ const ITEMS_PER_ROOM = 5;
 const TICKETS_PER_ROOM = 5;
 const TOTAL_ROOMS = 5 * ROOMS_PER_ZONE; // 15
 
+// Costs calibrated so total egg spend ≈ 1940 coins:
+// Zone 1 ≈ 1 calendar day (fast hook), Zone 5 ≈ 8+ active days (needs savings)
 const ZONES = [
-  { key: 'z0', name: 'Зона 1', eggCost: 30 },
-  { key: 'z1', name: 'Зона 2', eggCost: 55 },
-  { key: 'z2', name: 'Зона 3', eggCost: 90 },
-  { key: 'z3', name: 'Зона 4', eggCost: 140 },
-  { key: 'z4', name: 'Зона 5', eggCost: 220 },
+  { key: 'z0', name: 'Зона 1', eggCost: 4  },
+  { key: 'z1', name: 'Зона 2', eggCost: 8  },
+  { key: 'z2', name: 'Зона 3', eggCost: 16 },
+  { key: 'z3', name: 'Зона 4', eggCost: 29 },
+  { key: 'z4', name: 'Зона 5', eggCost: 51 },
 ];
 
+// OTK reward=22 calibrated so Вовлечённый finishes in ~30 days, Невовлечённый in ~65 days
 const GAMES = [
-  { key: 'gA', name: 'ОТК',       energyCost: 4, reward: 30, successRate: 0.75, hasSuccess: true },
+  { key: 'gA', name: 'ОТК',       energyCost: 4, reward: 22, successRate: 0.75, hasSuccess: true },
   { key: 'gB', name: 'СловоЦвет', energyCost: 1, coinsPerEnergy: 3.0, hasSuccess: false },
 ];
 
@@ -559,22 +562,26 @@ function simulatePlayer2(pKey) {
           }
         }
 
-        // Savings
+        // Savings: deposit is a "shadow" balance that grows from earnings but does NOT
+        // reduce the egg-buying budget (mirrors real-money savings → game rewards model).
+        // Dividends are BONUS coins added on top of regular earnings.
         let spendable = coinsEarned;
-        if (usesSavings && depositFrac > 0 && coinsEarned > 0) {
-          const toDeposit = coinsEarned * depositFrac;
-          savingsDeposit += toDeposit;
-          spendable = coinsEarned - toDeposit;
+        if (usesSavings && depositFrac > 0) {
+          // Deposit grows independently (doesn't reduce spendable)
+          savingsDeposit += coinsEarned * depositFrac;
 
-          // Apply daily interest on existing deposit
-          const rate = streakRates[streak - 1] || 0.10;
-          const maxDivs = 5 * (state[ZONES[Math.min(currentZone, ZONES.length - 1)].key] ||
-                               ZONES[Math.min(currentZone, ZONES.length - 1)].eggCost);
-          if (dividendsThisZone < maxDivs && savingsDeposit > 0) {
-            const divEarned = Math.min(savingsDeposit * rate, maxDivs - dividendsThisZone);
-            dividendsThisZone += divEarned;
-            totalDividends += divEarned;
-            spendable += divEarned;
+          // Apply daily interest on accumulated deposit, capped per zone
+          if (savingsDeposit > 0) {
+            const rate = streakRates[streak - 1] || 0.10;
+            const eggCostNow = state[ZONES[Math.min(currentZone, ZONES.length - 1)].key] ||
+                               ZONES[Math.min(currentZone, ZONES.length - 1)].eggCost;
+            const maxDivs = 5 * eggCostNow * ROOMS_PER_ZONE; // generous cap per zone
+            if (dividendsThisZone < maxDivs) {
+              const divEarned = Math.min(savingsDeposit * rate, maxDivs - dividendsThisZone);
+              dividendsThisZone += divEarned;
+              totalDividends += divEarned;
+              spendable += divEarned; // bonus coins on top of normal earnings
+            }
           }
         }
 
@@ -778,8 +785,10 @@ function renderSavingsParams() {
   ).join('');
   el.innerHTML = `
     <div style="margin-bottom:10px;font-size:0.8rem;color:var(--text2)">
+      Депозит растёт от заработанных монет, не уменьшая бюджет на яйца.
+      Дивиденды — бонусные монеты поверх обычного заработка.
       Ставка растёт при ежедневных заходах. Пропуск — откат на шаг назад.
-      Максимум дивидендов = 5 × стоимость яйца текущей зоны.
+      Макс. дивидендов за зону = 5 × цена яйца × кол-во комнат.
     </div>
     <div class="params-grid cols-5">${rateInputs}</div>`;
 }
@@ -913,7 +922,7 @@ function renderCharts() {
   const dupsPerZone = state.dupsPerZone || 3;
   const ticketsMax = ZONES.length * (ROOMS_PER_ZONE * TICKETS_PER_ROOM + dupsPerZone);
 
-  function drawChart(canvas, yMax, yLabel, getData) {
+  function drawChart(canvas, yMax, yLabel, getData, milestones) {
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     if (!rect.width) return;
@@ -922,40 +931,71 @@ function renderCharts() {
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
     const w = rect.width, h = rect.height;
-    const pad = { left: 46, right: 12, top: 12, bottom: 30 };
+    const pad = { left: 40, right: 14, top: 16, bottom: 38 };
     const plotW = w - pad.left - pad.right;
     const plotH = h - pad.top - pad.bottom;
 
     ctx.fillStyle = '#1a1d27';
     ctx.fillRect(0, 0, w, h);
 
-    const gridRows = 4;
+    // Horizontal gridlines + Y labels
+    const gridRows = 5;
     for (let i = 0; i <= gridRows; i++) {
       const y = pad.top + (i / gridRows) * plotH;
       const val = Math.round(yMax * (1 - i / gridRows));
-      ctx.strokeStyle = i === gridRows ? '#3a3d50' : '#252838';
+      ctx.strokeStyle = i === gridRows ? '#3a3d50' : '#222535';
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + plotW, y); ctx.stroke();
-      ctx.fillStyle = '#6b7080'; ctx.font = '10px system-ui,sans-serif';
+      ctx.fillStyle = '#5a6070'; ctx.font = '11px system-ui,sans-serif';
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      ctx.fillText(val.toString(), pad.left - 5, y);
+      ctx.fillText(val, pad.left - 4, y);
     }
 
-    ctx.fillStyle = '#8b90a0'; ctx.font = '10px system-ui,sans-serif';
+    // Y-axis label
+    ctx.fillStyle = '#8b90a0'; ctx.font = '11px system-ui,sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(yLabel, pad.left, pad.top - 2);
+    ctx.fillText(yLabel, pad.left, pad.top - 4);
 
-    const xTicks = Math.min(6, actDays);
-    for (let i = 0; i <= xTicks; i++) {
-      const day = Math.round((i / xTicks) * actDays);
-      const x = pad.left + (i / xTicks) * plotW;
+    // Milestone horizontal lines (e.g. zone boundaries on rooms chart)
+    if (milestones) {
+      milestones.forEach(({ val, label }) => {
+        const y = pad.top + plotH - (val / yMax) * plotH;
+        ctx.strokeStyle = '#3a3d55';
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + plotW, y); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#4a5060'; ctx.font = '9px system-ui,sans-serif';
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(label, pad.left + 2, y - 5);
+      });
+    }
+
+    // X-axis: tick every 10 days
+    const step = actDays <= 30 ? 5 : actDays <= 60 ? 10 : 15;
+    for (let day = 0; day <= actDays; day += step) {
+      const x = pad.left + (day / actDays) * plotW;
       ctx.strokeStyle = '#252838'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + plotH); ctx.stroke();
-      ctx.fillStyle = '#6b7080'; ctx.font = '10px system-ui,sans-serif';
+      ctx.fillStyle = '#6b7080'; ctx.font = '11px system-ui,sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      ctx.fillText('д' + day, x, h - 6);
+      ctx.fillText(`д${day}`, x, h - 8);
+    }
+    // Always label final day
+    if (actDays % step !== 0) {
+      const x = pad.left + plotW;
+      ctx.fillStyle = '#6b7080'; ctx.font = '11px system-ui,sans-serif';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(`д${actDays}`, x, h - 8);
     }
 
+    // X-axis baseline
+    ctx.strokeStyle = '#3a3d50'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top + plotH); ctx.lineTo(pad.left + plotW, pad.top + plotH);
+    ctx.stroke();
+
+    // Data lines
     PLAYERS.forEach((p, pi) => {
       const data = simCache[p.key]?.chartData?.[getData];
       if (!data || !data.length) return;
@@ -971,14 +1011,20 @@ function renderCharts() {
     });
   }
 
-  drawChart(roomsCanvas, totalRooms, 'комнаты', 'rooms');
-  drawChart(ticketsCanvas, ticketsMax, 'билеты', 'tickets');
+  // Zone boundary milestones for rooms chart
+  const roomMilestones = ZONES.map((z, i) => ({
+    val: (i + 1) * ROOMS_PER_ZONE,
+    label: z.name
+  }));
+
+  drawChart(roomsCanvas, totalRooms, 'комнат', 'rooms', roomMilestones);
+  drawChart(ticketsCanvas, ticketsMax, 'билетов', 'tickets', null);
 
   const legEl = document.getElementById('chartLegend');
   if (legEl) {
     legEl.innerHTML = PLAYERS.map((p, pi) =>
-      `<span style="color:${CHART_COLORS[pi]}">${p.name}</span>`
-    ).join(' · ');
+      `<span style="color:${CHART_COLORS[pi]}">■ ${p.name}</span>`
+    ).join('  ');
   }
 }
 
