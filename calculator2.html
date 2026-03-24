@@ -360,29 +360,22 @@ const TOTAL_ROOMS = 5 * ROOMS_PER_ZONE; // 15
 
 // Base (С-1) egg cost per zone. С-1 gives 50% item chance.
 // Premium eggs (СО/СВ) are price-multiplied — savings account enables buying them.
-// CALIBRATION NOTES (manual overnight deposit model, validated on 2000 runs):
-// Targets:
-//   B / Вовлечённый без счёта: [3, 6, 10, 15, 20]
-//   A / Вовлечённый + Счёт:    [3, 4, 7, 10, 14]
-// Achieved with current defaults:
-//   B / p1 strategy=greedy:    [3, 6, 11, 15, 21]
-//   A / p2 strategy=min-cost:  [2, 5, 8, 12, 17]
-// Notes:
-//   This is the best stable candidate found after switching to manual deposit,
-//   daily overnight accrual on calendar days, and 5x СВ dividend caps.
+// DEFAULT SCENARIO:
+//   This baseline matches the shared calculator URL requested by the user.
+//   It is a custom sandbox preset, not a calibrated target-matching baseline.
 const ZONES = [
-  { key: 'z0', name: 'Зона 1', eggCost: 5.5 },
-  { key: 'z1', name: 'Зона 2', eggCost: 6.9 },
-  { key: 'z2', name: 'Зона 3', eggCost: 8.7 },
-  { key: 'z3', name: 'Зона 4', eggCost: 11.0 },
-  { key: 'z4', name: 'Зона 5', eggCost: 13.9 },
+  { key: 'z0', name: 'Зона 1', eggCost: 8 },
+  { key: 'z1', name: 'Зона 2', eggCost: 10 },
+  { key: 'z2', name: 'Зона 3', eggCost: 15 },
+  { key: 'z3', name: 'Зона 4', eggCost: 25 },
+  { key: 'z4', name: 'Зона 5', eggCost: 37 },
 ];
 
 // 3 egg categories. itemsPerEgg = guaranteed items (С-1 is probabilistic: 50%).
 const EGG_TYPES = [
   { key: 'e0', name: 'С-1', itemsPerEgg: 0.5, defaultMult: 1.0 },
-  { key: 'e1', name: 'СО',  itemsPerEgg: 1.0, defaultMult: 1.55 },
-  { key: 'e2', name: 'СВ',  itemsPerEgg: 2.0, defaultMult: 4.0 },
+  { key: 'e1', name: 'СО',  itemsPerEgg: 1.0, defaultMult: 1.6 },
+  { key: 'e2', name: 'СВ',  itemsPerEgg: 2.0, defaultMult: 3.2 },
 ];
 
 // Game rewards grow per zone (slower than egg prices, creating affordability squeeze).
@@ -408,20 +401,20 @@ const PLAYERS = [
   },
   {
     key: 'p1', name: 'Вовлечённый',
-    daysPerWeek: 4, sessionsPerDay: 2, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 3.5 }, { type: 1, count: 1.4 }],
-    savings: false, depositFrac: 0, strategy: 0,
+    daysPerWeek: 5, sessionsPerDay: 2, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 1 }, { type: 1, count: 1 }, { type: 2, count: 1 }],
+    savings: true, depositFrac: 0.5, strategy: 2,
   },
   {
     key: 'p2', name: 'Вовлечённый + Счёт',
-    daysPerWeek: 4, sessionsPerDay: 2, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 3.5 }, { type: 1, count: 1.4 }],
+    daysPerWeek: 6, sessionsPerDay: 2, startDay: 0,
+    anchorsPerWeek: [{ type: 0, count: 1 }, { type: 1, count: 1 }, { type: 2, count: 1 }],
     savings: true, depositFrac: 0.9, strategy: 1,
   },
   {
     key: 'p3', name: 'Хардкор',
     daysPerWeek: 7, sessionsPerDay: 3, startDay: 0,
-    anchorsPerWeek: [{ type: 0, count: 5 }, { type: 1, count: 2 }, { type: 2, count: 1 }],
+    anchorsPerWeek: [{ type: 0, count: 1 }, { type: 1, count: 1 }, { type: 2, count: 1 }],
     savings: true, depositFrac: 0.9, strategy: 1,
   },
 ];
@@ -436,7 +429,7 @@ function buildDefaultState() {
   s.numRuns = 500;
   s.baseCap = 22;
   s.maxCap = 44;
-  s.dupRate = 0.08; // probability of duplicate per item draw
+  s.dupRate = 0.18; // probability of duplicate per item draw
   s.saveThreshold = 0.8;  // strategy 2: don't buy С-1 when within this fraction of СО price
   // Streak rates (fraction per day)
   s.streak_1 = 0.10; s.streak_2 = 0.15; s.streak_3 = 0.20;
