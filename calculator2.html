@@ -380,9 +380,9 @@ const EGG_TYPES = [
 ];
 
 // СловоЦвет uses expected reward per 1 energy, not exact payout by word length.
-// Base rule in x10 coins: 4 letters = 10, 5 = 30, 6 = 50, 7+ = 100.
+// Base rule in x10 coins: 4 letters = 35, 5 = 45, 6 = 55, 7+ = 70.
 // Assumed word-length mix for the EV: 60% / 25% / 10% / 5%.
-const WORD_COLOR_LENGTH_REWARDS = [10, 30, 50, 100];
+const WORD_COLOR_LENGTH_REWARDS = [35, 45, 55, 70];
 const WORD_COLOR_LENGTH_WEIGHTS = [0.60, 0.25, 0.10, 0.05];
 const WORD_COLOR_ZONE_MULTS = [1.00, 1.10, 1.15, 1.20, 1.25];
 const WORD_COLOR_BASE_EV = WORD_COLOR_LENGTH_REWARDS.reduce(
@@ -958,7 +958,7 @@ function renderGameParams() {
     <div style="font-size:0.8rem;color:var(--text2);margin-bottom:8px">
       Награды растут медленнее стоимости яиц — давление нарастает по зонам.<br>
       <b style="color:var(--text)">СловоЦвет</b> в калькуляторе считается как ожидаемая средняя награда за 1 энергию:
-      4 буквы = 10, 5 = 30, 6 = 50, 7+ = 100 (x10 монет) при смеси длин 60% / 25% / 10% / 5%.<br>
+      4 буквы = 35, 5 = 45, 6 = 55, 7+ = 70 (x10 монет) при смеси длин 60% / 25% / 10% / 5%.<br>
       Игрок не обязан сначала играть в ОТК: в профиле задаётся доля энергии в СловоЦвет, остаток идёт в ОТК.
       Если на долю ОТК не хватает на полный матч, этот хвост энергии тоже уходит в СловоЦвет.
     </div>
