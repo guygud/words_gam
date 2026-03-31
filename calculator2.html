@@ -358,17 +358,18 @@ const ITEMS_PER_ROOM = 5;
 const TICKETS_PER_ROOM = 5;
 const TOTAL_ROOMS = 5 * ROOMS_PER_ZONE; // 15
 
-// Base (С-1) egg cost per zone. С-1 gives 50% item chance.
+// Base (С-1) egg cost per zone. Coin-denominated defaults use x10 scale
+// so the economy can be described in whole numbers in the GDD/UI.
 // Premium eggs (СО/СВ) are price-multiplied — savings account enables buying them.
 // DEFAULT SCENARIO:
 //   This baseline matches the shared calculator URL requested by the user.
 //   It is a custom sandbox preset, not a calibrated target-matching baseline.
 const ZONES = [
-  { key: 'z0', name: 'Зона 1', eggCost: 8 },
-  { key: 'z1', name: 'Зона 2', eggCost: 10 },
-  { key: 'z2', name: 'Зона 3', eggCost: 15 },
-  { key: 'z3', name: 'Зона 4', eggCost: 25 },
-  { key: 'z4', name: 'Зона 5', eggCost: 37 },
+  { key: 'z0', name: 'Зона 1', eggCost: 80 },
+  { key: 'z1', name: 'Зона 2', eggCost: 100 },
+  { key: 'z2', name: 'Зона 3', eggCost: 150 },
+  { key: 'z3', name: 'Зона 4', eggCost: 250 },
+  { key: 'z4', name: 'Зона 5', eggCost: 370 },
 ];
 
 // 3 egg categories. itemsPerEgg = guaranteed items (С-1 is probabilistic: 50%).
@@ -381,15 +382,15 @@ const EGG_TYPES = [
 // Game rewards grow per zone (slower than egg prices, creating affordability squeeze).
 const GAMES = [
   { key: 'gA', name: 'ОТК',       energyCost: 4, successRate: 0.75, hasSuccess: true,
-    defaultRewards: [20.0, 21.2, 22.47, 23.82, 25.25] },
+    defaultRewards: [200, 212, 225, 238, 253] },
   { key: 'gB', name: 'СловоЦвет', energyCost: 1, hasSuccess: false,
-    defaultRewards: [2.4, 2.544, 2.696, 2.858, 3.03] },
+    defaultRewards: [24, 25, 27, 29, 30] },
 ];
 
 const ANCHOR_TYPES = [
-  { key: 'aL', name: 'Лёгкий',   coins: 20,  capBonus: 0.5 },
-  { key: 'aM', name: 'Средний',  coins: 50,  capBonus: 1.0 },
-  { key: 'aH', name: 'Тяжёлый', coins: 100, capBonus: 2.0 },
+  { key: 'aL', name: 'Лёгкий',   coins: 200,  capBonus: 0.5 },
+  { key: 'aM', name: 'Средний',  coins: 500,  capBonus: 1.0 },
+  { key: 'aH', name: 'Тяжёлый', coins: 1000, capBonus: 2.0 },
 ];
 
 const PLAYERS = [
@@ -917,7 +918,7 @@ function renderGameParams() {
     const successKey = g.key + '_success';
     const rewardCells = ZONES.map((z, zi) => {
       const val = state[g.key + '_reward_z' + zi] ?? g.defaultRewards[zi];
-      const step = g.hasSuccess ? 0.01 : 0.001;
+      const step = 1;
       return `<td><input type="number" data-key="${g.key}_reward_z${zi}" value="${val}"
                 min="0" step="${step}" style="width:60px;background:var(--surface2);border:1px solid var(--border);
                 color:var(--text);padding:3px 5px;border-radius:4px;font-family:var(--mono);font-size:0.8rem"></td>`;
