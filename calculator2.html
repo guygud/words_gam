@@ -379,12 +379,22 @@ const EGG_TYPES = [
   { key: 'e2', name: 'СВ',  itemsPerEgg: 2.0, defaultMult: 3.2 },
 ];
 
+// СловоЦвет uses expected reward per 1 energy, not exact payout by word length.
+// Base rule in x10 coins: 4 letters = 10, 5 = 30, 6 = 50, 7+ = 100.
+// Assumed word-length mix for the EV: 60% / 25% / 10% / 5%.
+const WORD_COLOR_LENGTH_REWARDS = [10, 30, 50, 100];
+const WORD_COLOR_LENGTH_WEIGHTS = [0.60, 0.25, 0.10, 0.05];
+const WORD_COLOR_ZONE_MULTS = [1.00, 1.10, 1.15, 1.20, 1.25];
+const WORD_COLOR_BASE_EV = WORD_COLOR_LENGTH_REWARDS.reduce(
+  (sum, reward, i) => sum + reward * WORD_COLOR_LENGTH_WEIGHTS[i], 0
+);
+
 // Game rewards grow per zone (slower than egg prices, creating affordability squeeze).
 const GAMES = [
   { key: 'gA', name: 'ОТК',       energyCost: 4, successRate: 0.75, hasSuccess: true,
     defaultRewards: [200, 212, 225, 238, 253] },
   { key: 'gB', name: 'СловоЦвет', energyCost: 1, hasSuccess: false,
-    defaultRewards: [24, 25, 27, 29, 30] },
+    defaultRewards: WORD_COLOR_ZONE_MULTS.map(mult => Math.round(WORD_COLOR_BASE_EV * mult)) },
 ];
 
 const ANCHOR_TYPES = [
@@ -941,7 +951,9 @@ function renderGameParams() {
 
   el.innerHTML = `
     <div style="font-size:0.8rem;color:var(--text2);margin-bottom:8px">
-      Награды растут медленнее стоимости яиц — давление нарастает по зонам.
+      Награды растут медленнее стоимости яиц — давление нарастает по зонам.<br>
+      <b style="color:var(--text)">СловоЦвет</b> в калькуляторе считается как ожидаемая средняя награда за 1 энергию:
+      4 буквы = 10, 5 = 30, 6 = 50, 7+ = 100 (x10 монет) при смеси длин 60% / 25% / 10% / 5%.
     </div>
     <div style="overflow-x:auto">
       <table style="border-collapse:collapse;width:100%">
